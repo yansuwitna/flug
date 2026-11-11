@@ -1,0 +1,396 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ContentType {
+  VIDEO_EMBED
+  VIDEO_FILE
+  TEXT
+  LINK
+  DOCUMENT
+}
+
+enum ChallengeType {
+  TEXT
+  NUMERIC
+  MULTIPLE_CHOICE
+  SEQUENCE
+  CASE_STUDY
+}
+
+enum MissionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum XpSource {
+  MISSION_SOLVE
+  CHALLENGE_SOLVE
+  CLUE_PENALTY
+  BONUS
+}
+
+model User {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  role         Role        @default(STUDENT)
+  status       UserStatus  @default(ACTIVE)
+  avatarUrl    String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relasi
+  classMembers    ClassMember[]
+  classSubjects   ClassSubject[]
+  createdMissions Mission[]
+  attempts        MissionAttempt[]
+  xpTransactions  XpTransaction[]
+  userBadges      UserBadge[]
+  auditLogs       AuditLog[]
+
+  @@index([role])
+  @@index([email])
+}
+
+model AcademicYear {
+  id        String        @id @default(cuid())
+  name      String        @unique // Contoh: "2025/2026 Ganjil"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  classes   SchoolClass[]
+}
+
+model SchoolClass {
+  id             String       @id @default(cuid())
+  name           String       // Contoh: "X RPL 1"
+  gradeLevel     Int          // Tingkat kelas: 10, 11, 12, dll
+  major          String?      // Program/Jurusan: "Rekayasa Perangkat Lunak"
+  academicYearId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  members        ClassMember[]
+  classSubjects  ClassSubject[]
+
+  @@unique([name, academicYearId])
+  @@index([academicYearId])
+}
+
+model ClassMember {
+  id        String      @id @default(cuid())
+  classId   String
+  userId    String
+  role      Role        @default(STUDENT)
+  joinedAt  DateTime    @default(now())
+
+  schoolClass SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, userId])
+  @@index([userId])
+  @@index([classId])
+}
+
+model Subject {
+  id          String         @id @default(cuid())
+  code        String         @unique // Contoh: "TIK-01"
+  name        String         // Contoh: "Teknologi Informasi & Jaringan"
+  description String?        @db.Text
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  chapters      Chapter[]
+  classSubjects ClassSubject[]
+}
+
+model ClassSubject {
+  id        String      @id @default(cuid())
+  classId   String
+  subjectId String
+  teacherId String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  schoolClass SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher     User        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  missions    Mission[]
+
+  @@unique([classId, subjectId, teacherId])
+  @@index([classId])
+  @@index([subjectId])
+  @@index([teacherId])
+}
+
+model Chapter {
+  id          String    @id @default(cuid())
+  subjectId   String
+  title       String    // Contoh: "Dasar Jaringan Komputer"
+  description String?   @db.Text
+  orderIndex  Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  subject  Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  missions Mission[]
+
+  @@index([subjectId])
+}
+
+model Mission {
+  id                 String         @id @default(cuid())
+  classSubjectId     String
+  chapterId          String
+  creatorId          String
+  title              String
+  slug               String         @unique
+  description        String         @db.Text
+  learningObjectives String?        @db.Text
+  difficulty         String         @default("MEDIUM") // EASY, MEDIUM, HARD
+  status             MissionStatus  @default(DRAFT)
+  durationMinutes    Int?           // Batas waktu opsional (menit)
+  maxAttempts        Int            @default(3)
+  totalPoints        Int            @default(0)
+  orderIndex         Int            @default(1)
+  publishedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  classSubject    ClassSubject      @relation(fields: [classSubjectId], references: [id], onDelete: Cascade)
+  chapter         Chapter           @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  creator         User              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  learningContent LearningContent[]
+  challenges      Challenge[]
+  attempts        MissionAttempt[]
+
+  @@index([classSubjectId])
+  @@index([chapterId])
+  @@index([creatorId])
+  @@index([status])
+}
+
+model LearningContent {
+  id          String      @id @default(cuid())
+  missionId   String
+  contentType ContentType @default(TEXT)
+  title       String
+  body        String?     @db.LongText
+  mediaUrl    String?     // Video URL atau Link dokumen
+  orderIndex  Int         @default(1)
+  durationSec Int?        // Durasi estimasi (detik)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId])
+}
+
+model Challenge {
+  id            String        @id @default(cuid())
+  missionId     String
+  title         String
+  question      String        @db.Text
+  description   String?       @db.Text
+  challengeType ChallengeType @default(TEXT)
+  points        Int           @default(100)
+  orderIndex    Int           @default(1)
+  maxTries      Int           @default(5)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  mission         Mission           @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  options         ChallengeOption[]
+  flagAnswers     FlagAnswer[]
+  clues           Clue[]
+  flagSubmissions FlagSubmission[]
+
+  @@index([missionId])
+}
+
+model ChallengeOption {
+  id          String    @id @default(cuid())
+  challengeId String
+  optionText  String
+  orderIndex  Int       @default(1)
+  createdAt   DateTime  @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@index([challengeId])
+}
+
+model FlagAnswer {
+  id              String   @id @default(cuid())
+  challengeId     String
+  answerHash      String   // SHA-256 / HMAC hash dari flag jawaban yang sudah dinormalisasi
+  isCaseSensitive Boolean  @default(false)
+  trimSpaces      Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@index([challengeId])
+}
+
+model Clue {
+  id          String      @id @default(cuid())
+  challengeId String
+  title       String      // Contoh: "Petunjuk 1 (Umum)"
+  hintText    String      @db.Text
+  penaltyXp   Int         @default(0) // Pengurangan XP bila clue dibuka
+  orderIndex  Int         @default(1)
+  createdAt   DateTime    @default(now())
+
+  challenge  Challenge   @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  clueUsages ClueUsage[]
+
+  @@index([challengeId])
+}
+
+model MissionAttempt {
+  id            String        @id @default(cuid())
+  userId        String
+  missionId     String
+  attemptNumber Int           @default(1)
+  status        AttemptStatus @default(IN_PROGRESS)
+  startedAt     DateTime      @default(now())
+  completedAt   DateTime?
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission         Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  flagSubmissions FlagSubmission[]
+  clueUsages      ClueUsage[]
+  result          MissionResult?
+
+  @@unique([userId, missionId, attemptNumber])
+  @@index([userId])
+  @@index([missionId])
+}
+
+model FlagSubmission {
+  id              String         @id @default(cuid())
+  attemptId       String
+  challengeId     String
+  submittedAnswer String         // Jawaban mentah yang dikirim siswa (disimpan untuk audit)
+  isCorrect       Boolean        @default(false)
+  pointsAwarded   Int            @default(0)
+  submittedAt     DateTime       @default(now())
+
+  attempt   MissionAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  challenge Challenge      @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([challengeId])
+}
+
+model ClueUsage {
+  id              String         @id @default(cuid())
+  attemptId       String
+  clueId          String
+  penaltyDeducted Int            @default(0)
+  unlockedAt      DateTime       @default(now())
+
+  attempt MissionAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  clue    Clue           @relation(fields: [clueId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, clueId])
+  @@index([attemptId])
+  @@index([clueId])
+}
+
+model MissionResult {
+  id          String         @id @default(cuid())
+  attemptId   String         @unique
+  totalScore  Int            @default(0)
+  xpEarned    Int            @default(0)
+  completedAt DateTime       @default(now())
+
+  attempt MissionAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
+
+model XpTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  amount      Int      // Positif (penambahan) atau negatif (penalti)
+  source      XpSource
+  referenceId String?  // ID attempt atau submission terkait
+  description String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([source])
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  slug        String      @unique
+  description String
+  iconUrl     String?
+  criteria    String      // JSON kriteria unlock badge
+  createdAt   DateTime    @default(now())
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@index([badgeId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  actorId        String?
+  action         String
+  targetResource String
+  metadata       String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([action])
+}
