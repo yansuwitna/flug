@@ -15,106 +15,105 @@ async function requireAdmin() {
 }
 
 // -----------------------------------------------------------------------------
-// 1. TAHUN AJARAN (Academic Year)
+// 1. TAHUN AJARAN (TahunAjaran)
 // -----------------------------------------------------------------------------
-const academicYearSchema = z.object({
-  name: z.string().min(3, "Nama tahun ajaran minimal 3 karakter"),
-  startDate: z.string().min(1, "Tanggal mulai wajib diisi"),
-  endDate: z.string().min(1, "Tanggal selesai wajib diisi"),
-  isActive: z.boolean().default(false),
+const tahunAjaranSchema = z.object({
+  nama: z.string().min(3, "Nama tahun ajaran minimal 3 karakter"),
+  tanggalMulai: z.string().min(1, "Tanggal mulai wajib diisi"),
+  tanggalSelesai: z.string().min(1, "Tanggal selesai wajib diisi"),
+  aktif: z.boolean().default(false),
 });
 
 export async function createAcademicYearAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
-  const validated = academicYearSchema.safeParse({
-    name: formData.get("name"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    isActive: formData.get("isActive") === "on",
+  const validated = tahunAjaranSchema.safeParse({
+    nama: formData.get("name") || formData.get("nama"),
+    tanggalMulai: formData.get("startDate") || formData.get("tanggalMulai"),
+    tanggalSelesai: formData.get("endDate") || formData.get("tanggalSelesai"),
+    aktif: formData.get("isActive") === "on" || formData.get("aktif") === "on",
   });
 
   if (!validated.success) {
     return;
   }
 
-  const { name, startDate, endDate, isActive } = validated.data;
+  const { nama, tanggalMulai, tanggalSelesai, aktif } = validated.data;
 
-  // Jika diaktifkan, nonaktifkan tahun ajaran lainnya
-  if (isActive) {
-    await prisma.academicYear.updateMany({
-      data: { isActive: false },
+  if (aktif) {
+    await prisma.tahunAjaran.updateMany({
+      data: { aktif: false },
     });
   }
 
-  await prisma.academicYear.create({
+  await prisma.tahunAjaran.create({
     data: {
-      name,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      isActive,
+      nama,
+      tanggalMulai: new Date(tanggalMulai),
+      tanggalSelesai: new Date(tanggalSelesai),
+      aktif,
     },
   });
 
-  revalidatePath("/admin/academic-years");
-  revalidatePath("/admin/classes");
+  revalidatePath("/admin/tahun-ajaran");
+  revalidatePath("/admin");
 }
 
-export async function toggleAcademicYearActiveAction(id: string): Promise<void> {
+export async function toggleAcademicYearStatusAction(id: string): Promise<void> {
   await requireAdmin();
 
-  const target = await prisma.academicYear.findUnique({ where: { id } });
+  const target = await prisma.tahunAjaran.findUnique({ where: { id } });
   if (!target) return;
 
-  if (!target.isActive) {
-    await prisma.academicYear.updateMany({ data: { isActive: false } });
-    await prisma.academicYear.update({ where: { id }, data: { isActive: true } });
+  if (!target.aktif) {
+    await prisma.tahunAjaran.updateMany({ data: { aktif: false } });
+    await prisma.tahunAjaran.update({ where: { id }, data: { aktif: true } });
   } else {
-    await prisma.academicYear.update({ where: { id }, data: { isActive: false } });
+    await prisma.tahunAjaran.update({ where: { id }, data: { aktif: false } });
   }
 
-  revalidatePath("/admin/academic-years");
-  revalidatePath("/admin/classes");
+  revalidatePath("/admin/tahun-ajaran");
+  revalidatePath("/admin");
 }
 
 export async function deleteAcademicYearAction(id: string): Promise<void> {
   await requireAdmin();
-  await prisma.academicYear.delete({ where: { id } });
-  revalidatePath("/admin/academic-years");
+  await prisma.tahunAjaran.delete({ where: { id } });
+  revalidatePath("/admin/tahun-ajaran");
+  revalidatePath("/admin");
 }
 
 // -----------------------------------------------------------------------------
-// 2. KELAS (School Class)
+// 2. KELAS (Kelas)
 // -----------------------------------------------------------------------------
-const schoolClassSchema = z.object({
-  name: z.string().min(2, "Nama kelas minimal 2 karakter"),
-  gradeLevel: z.coerce.number().min(1, "Tingkat kelas minimal 1"),
-  major: z.string().optional(),
-  academicYearId: z.string().min(1, "Tahun ajaran wajib dipilih"),
+const kelasSchema = z.object({
+  nama: z.string().min(2, "Nama kelas minimal 2 karakter"),
+  tingkat: z.coerce.number().min(1, "Tingkat kelas harus berupa angka valid"),
+  jurusan: z.string().optional(),
+  idTahunAjaran: z.string().min(1, "Tahun ajaran wajib dipilih"),
 });
 
 export async function createClassAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
-  const validated = schoolClassSchema.safeParse({
-    name: formData.get("name"),
-    gradeLevel: formData.get("gradeLevel"),
-    major: formData.get("major") || undefined,
-    academicYearId: formData.get("academicYearId"),
+  const validated = kelasSchema.safeParse({
+    nama: formData.get("name") || formData.get("nama"),
+    tingkat: formData.get("gradeLevel") || formData.get("tingkat"),
+    jurusan: (formData.get("major") as string) || (formData.get("jurusan") as string) || undefined,
+    idTahunAjaran: (formData.get("academicYearId") as string) || (formData.get("idTahunAjaran") as string),
   });
 
   if (!validated.success) {
     return;
   }
 
-  const { name, gradeLevel, major, academicYearId } = validated.data;
+  const { nama, tingkat, jurusan, idTahunAjaran } = validated.data;
 
-  // Cek duplikasi
-  const existing = await prisma.schoolClass.findUnique({
+  const existing = await prisma.kelas.findUnique({
     where: {
-      name_academicYearId: {
-        name,
-        academicYearId,
+      nama_idTahunAjaran: {
+        nama,
+        idTahunAjaran,
       },
     },
   });
@@ -123,115 +122,123 @@ export async function createClassAction(formData: FormData): Promise<void> {
     return;
   }
 
-  await prisma.schoolClass.create({
+  await prisma.kelas.create({
     data: {
-      name,
-      gradeLevel,
-      major,
-      academicYearId,
+      nama,
+      tingkat,
+      jurusan,
+      idTahunAjaran,
     },
   });
 
-  revalidatePath("/admin/classes");
+  revalidatePath("/admin/kelas");
+  revalidatePath("/admin");
 }
 
 export async function deleteClassAction(id: string): Promise<void> {
   await requireAdmin();
-  await prisma.schoolClass.delete({ where: { id } });
-  revalidatePath("/admin/classes");
+  await prisma.kelas.delete({ where: { id } });
+  revalidatePath("/admin/kelas");
+  revalidatePath("/admin");
 }
 
 // -----------------------------------------------------------------------------
-// 3. MATA PELAJARAN (Subject) & CHAPTER (Bab)
+// 3. MATA PELAJARAN (MataPelajaran) & BAB
 // -----------------------------------------------------------------------------
-const subjectSchema = z.object({
-  code: z.string().min(2, "Kode mata pelajaran minimal 2 karakter"),
-  name: z.string().min(3, "Nama mata pelajaran minimal 3 karakter"),
-  description: z.string().optional(),
+const mataPelajaranSchema = z.object({
+  kode: z.string().min(2, "Kode mata pelajaran minimal 2 karakter"),
+  nama: z.string().min(3, "Nama mata pelajaran minimal 3 karakter"),
+  deskripsi: z.string().optional(),
 });
 
 export async function createSubjectAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
-  const validated = subjectSchema.safeParse({
-    code: formData.get("code")?.toString().trim().toUpperCase(),
-    name: formData.get("name"),
-    description: formData.get("description") || undefined,
+  const validated = mataPelajaranSchema.safeParse({
+    kode: formData.get("code") || formData.get("kode"),
+    nama: formData.get("name") || formData.get("nama"),
+    deskripsi: (formData.get("description") as string) || (formData.get("deskripsi") as string) || undefined,
   });
 
   if (!validated.success) {
     return;
   }
 
-  const { code, name, description } = validated.data;
+  const { kode, nama, deskripsi } = validated.data;
 
-  const existing = await prisma.subject.findUnique({ where: { code } });
+  const existing = await prisma.mataPelajaran.findUnique({ where: { kode } });
   if (existing) {
     return;
   }
 
-  await prisma.subject.create({
-    data: { code, name, description },
+  await prisma.mataPelajaran.create({
+    data: {
+      kode,
+      nama,
+      deskripsi,
+    },
   });
 
-  revalidatePath("/admin/subjects");
+  revalidatePath("/admin/mata-pelajaran");
+  revalidatePath("/admin");
 }
 
 export async function deleteSubjectAction(id: string): Promise<void> {
   await requireAdmin();
-  await prisma.subject.delete({ where: { id } });
-  revalidatePath("/admin/subjects");
+  await prisma.mataPelajaran.delete({ where: { id } });
+  revalidatePath("/admin/mata-pelajaran");
+  revalidatePath("/admin");
 }
 
 export async function createChapterAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "ADMIN" && user.role !== "TEACHER")) {
+  if (!user || (user.role !== "ADMIN" && user.role !== "GURU")) {
     return;
   }
 
-  const subjectId = formData.get("subjectId") as string;
-  const title = formData.get("title") as string;
-  const description = (formData.get("description") as string) || undefined;
-  const orderIndex = Number(formData.get("orderIndex") || 1);
+  const idMataPelajaran = (formData.get("subjectId") || formData.get("idMataPelajaran")) as string;
+  const judul = (formData.get("title") || formData.get("judul")) as string;
+  const deskripsi = (formData.get("description") || formData.get("deskripsi")) as string;
+  const nomorUrut = Number(formData.get("orderIndex") || formData.get("nomorUrut") || 1);
 
-  if (!subjectId || !title) {
+  if (!idMataPelajaran || !judul) {
     return;
   }
 
-  await prisma.chapter.create({
+  await prisma.bab.create({
     data: {
-      subjectId,
-      title,
-      description,
-      orderIndex,
+      idMataPelajaran,
+      judul,
+      deskripsi: deskripsi || undefined,
+      nomorUrut,
     },
   });
 
-  revalidatePath(`/admin/subjects/${subjectId}`);
-  revalidatePath("/admin/subjects");
-  revalidatePath("/teacher/dashboard");
+  revalidatePath(`/admin/mata-pelajaran/${idMataPelajaran}`);
+  revalidatePath("/admin/mata-pelajaran");
+  revalidatePath("/guru");
 }
 
 // -----------------------------------------------------------------------------
-// 4. PENUGASAN GURU KE KELAS (ClassSubject) & SISWA (ClassMember)
+// 4. PENUGASAN GURU KE KELAS (MapelKelas) & SISWA (AnggotaKelas)
 // -----------------------------------------------------------------------------
 export async function assignTeacherToClassAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
-  const classId = formData.get("classId") as string;
-  const subjectId = formData.get("subjectId") as string;
-  const teacherId = formData.get("teacherId") as string;
+  const idKelas = (formData.get("classId") || formData.get("idKelas")) as string;
+  const idMataPelajaran = (formData.get("subjectId") || formData.get("idMataPelajaran")) as string;
+  const idGuru = (formData.get("teacherId") || formData.get("idGuru")) as string;
 
-  if (!classId || !subjectId || !teacherId) {
+  if (!idKelas || !idMataPelajaran || !idGuru) {
     return;
   }
 
-  const existing = await prisma.classSubject.findUnique({
+  const existing = await prisma.mapelKelas.findUnique({
     where: {
-      classId_subjectId_teacherId: {
-        classId,
-        subjectId,
-        teacherId,
+      idKelas_idMataPelajaran_idGuru: {
+        idKelas,
+        idMataPelajaran,
+        idGuru,
       },
     },
   });
@@ -240,27 +247,27 @@ export async function assignTeacherToClassAction(formData: FormData): Promise<vo
     return;
   }
 
-  await prisma.classSubject.create({
-    data: { classId, subjectId, teacherId },
+  await prisma.mapelKelas.create({
+    data: { idKelas, idMataPelajaran, idGuru },
   });
 
-  revalidatePath(`/admin/classes/${classId}`);
-  revalidatePath("/admin/classes");
+  revalidatePath(`/admin/kelas/${idKelas}`);
+  revalidatePath("/admin/kelas");
 }
 
 export async function addStudentToClassAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
-  const classId = formData.get("classId") as string;
-  const userId = formData.get("userId") as string;
+  const idKelas = (formData.get("classId") || formData.get("idKelas")) as string;
+  const idSiswa = (formData.get("studentId") || formData.get("userId") || formData.get("idSiswa")) as string;
 
-  if (!classId || !userId) {
+  if (!idKelas || !idSiswa) {
     return;
   }
 
-  const existing = await prisma.classMember.findUnique({
+  const existing = await prisma.anggotaKelas.findUnique({
     where: {
-      classId_userId: { classId, userId },
+      idKelas_idSiswa: { idKelas, idSiswa },
     },
   });
 
@@ -268,15 +275,15 @@ export async function addStudentToClassAction(formData: FormData): Promise<void>
     return;
   }
 
-  await prisma.classMember.create({
-    data: { classId, userId, role: "STUDENT" },
+  await prisma.anggotaKelas.create({
+    data: { idKelas, idSiswa },
   });
 
-  revalidatePath(`/admin/classes/${classId}`);
+  revalidatePath(`/admin/kelas/${idKelas}`);
 }
 
-export async function removeClassMemberAction(memberId: string, classId: string): Promise<void> {
+export async function removeClassMemberAction(memberId: string, idKelas: string): Promise<void> {
   await requireAdmin();
-  await prisma.classMember.delete({ where: { id: memberId } });
-  revalidatePath(`/admin/classes/${classId}`);
+  await prisma.anggotaKelas.delete({ where: { id: memberId } });
+  revalidatePath(`/admin/kelas/${idKelas}`);
 }

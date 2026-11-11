@@ -1,41 +1,40 @@
+"use server";
+
 import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 
-/**
- * Generate string format CSV untuk laporan hasil pengerjaan misi siswa
- */
-export async function exportMissionResultsCSV(missionId: string): Promise<string> {
+export async function exportMissionResultsCsvAction(idMisi: string): Promise<string> {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "TEACHER" && user.role !== "ADMIN")) {
+  if (!user || (user.role !== "GURU" && user.role !== "ADMIN")) {
     throw new Error("Unauthorized");
   }
 
-  const mission = await prisma.mission.findUnique({
-    where: { id: missionId },
+  const mission = await prisma.misi.findUnique({
+    where: { id: idMisi },
     include: {
-      classSubject: {
+      mapelKelas: {
         include: {
-          schoolClass: true,
-          subject: true,
+          kelas: true,
+          mataPelajaran: true,
         },
       },
-      challenges: true,
-      attempts: {
+      tantangan: true,
+      percobaan: {
         include: {
-          user: true,
-          result: true,
-          flagSubmissions: {
-            where: { isCorrect: true },
+          siswa: true,
+          hasil: true,
+          kirimanJawaban: {
+            where: { benar: true },
           },
-          clueUsages: true,
+          penggunaanPetunjuk: true,
         },
-        orderBy: { completedAt: "desc" },
+        orderBy: { selesaiPada: "desc" },
       },
     },
   });
 
   if (!mission) {
-    throw new Error("Mission tidak ditemukan");
+    throw new Error("Misi tidak ditemukan");
   }
 
   // Header CSV
@@ -45,35 +44,35 @@ export async function exportMissionResultsCSV(missionId: string): Promise<string
     "Email",
     "Kelas",
     "Mata Pelajaran",
-    "Judul Mission",
-    "Attempt Ke",
+    "Judul Misi",
+    "Percobaan Ke",
     "Status",
     "Flag Terpecahkan",
-    "Total Challenge",
-    "Clue Digunakan",
+    "Total Tantangan",
+    "Petunjuk Digunakan",
     "Total Skor",
     "Waktu Selesai",
   ];
 
-  const rows = mission.attempts.map((att, idx) => {
-    const solvedCount = att.flagSubmissions.length;
-    const clueCount = att.clueUsages.length;
-    const score = att.result?.totalScore || 0;
-    const completedTime = att.completedAt
-      ? new Date(att.completedAt).toLocaleString("id-ID")
+  const rows = mission.percobaan.map((att, idx) => {
+    const solvedCount = att.kirimanJawaban.length;
+    const clueCount = att.penggunaanPetunjuk.length;
+    const score = att.hasil?.totalSkor || 0;
+    const completedTime = att.selesaiPada
+      ? new Date(att.selesaiPada).toLocaleString("id-ID")
       : "-";
 
     return [
       idx + 1,
-      `"${att.user.name.replace(/"/g, '""')}"`,
-      `"${att.user.email}"`,
-      `"${mission.classSubject.schoolClass.name}"`,
-      `"${mission.classSubject.subject.name}"`,
-      `"${mission.title.replace(/"/g, '""')}"`,
-      att.attemptNumber,
+      `"${att.siswa.nama.replace(/"/g, '""')}"`,
+      `"${att.siswa.email}"`,
+      `"${mission.mapelKelas.kelas.nama}"`,
+      `"${mission.mapelKelas.mataPelajaran.nama}"`,
+      `"${mission.judul.replace(/"/g, '""')}"`,
+      att.nomorPercobaan,
       att.status,
       solvedCount,
-      mission.challenges.length,
+      mission.tantangan.length,
       clueCount,
       score,
       `"${completedTime}"`,

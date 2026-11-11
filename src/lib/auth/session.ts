@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { Role } from "@prisma/client";
+
+export type PeranPengguna = "ADMIN" | "GURU" | "SISWA";
 
 export const SESSION_COOKIE_NAME = "flag_hunter_session";
 const JWT_SECRET = new TextEncoder().encode(
@@ -11,7 +12,7 @@ export interface UserSessionPayload {
   userId: string;
   name: string;
   email: string;
-  role: Role;
+  role: PeranPengguna;
 }
 
 export async function createSessionToken(payload: UserSessionPayload): Promise<string> {
@@ -29,7 +30,7 @@ export async function verifySessionToken(token: string): Promise<UserSessionPayl
       userId: payload.userId as string,
       name: payload.name as string,
       email: payload.email as string,
-      role: payload.role as Role,
+      role: payload.role as PeranPengguna,
     };
   } catch {
     return null;
@@ -51,7 +52,7 @@ export async function setSessionCookie(payload: UserSessionPayload) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 7 * 24 * 60 * 60, // 7 hari
+    maxAge: 60 * 60 * 24 * 7, // 7 hari
   });
 }
 

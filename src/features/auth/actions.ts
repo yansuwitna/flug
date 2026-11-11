@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { verifyPassword } from "@/lib/security/hash";
-import { setSessionCookie, clearSessionCookie } from "@/lib/auth/session";
+import { setSessionCookie, clearSessionCookie, PeranPengguna } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 
 const loginSchema = z.object({
@@ -32,34 +32,77 @@ export async function loginAction(
   }
 
   const { email, password } = validated.data;
+  const normalizedEmail = email.toLowerCase();
 
-  const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
-  });
+  // Cari di tabel Admin, Guru, atau Siswa
+  let foundUser: {
+    id: string;
+    nama: string;
+    email: string;
+    kataSandi: string;
+    status: string;
+    role: PeranPengguna;
+  } | null = null;
 
-  if (!user || user.status !== "ACTIVE") {
-    return { error: "Email atau password salah" };
+  const admin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
+  if (admin) {
+    foundUser = {
+      id: admin.id,
+      nama: admin.nama,
+      email: admin.email,
+      kataSandi: admin.kataSandi,
+      status: admin.status,
+      role: "ADMIN",
+    };
+  } else {
+    const guru = await prisma.guru.findUnique({ where: { email: normalizedEmail } });
+    if (guru) {
+      foundUser = {
+        id: guru.id,
+        nama: guru.nama,
+        email: guru.email,
+        kataSandi: guru.kataSandi,
+        status: guru.status,
+        role: "GURU",
+      };
+    } else {
+      const siswa = await prisma.siswa.findUnique({ where: { email: normalizedEmail } });
+      if (siswa) {
+        foundUser = {
+          id: siswa.id,
+          nama: siswa.nama,
+          email: siswa.email,
+          kataSandi: siswa.kataSandi,
+          status: siswa.status,
+          role: "SISWA",
+        };
+      }
+    }
   }
 
-  const isPasswordValid = await verifyPassword(password, user.passwordHash);
+  if (!foundUser || foundUser.status !== "AKTIF") {
+    return { error: "Email atau password salah atau akun dinonaktifkan." };
+  }
+
+  const isPasswordValid = await verifyPassword(password, foundUser.kataSandi);
   if (!isPasswordValid) {
-    return { error: "Email atau password salah" };
+    return { error: "Email atau password salah." };
   }
 
   await setSessionCookie({
-    userId: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
+    userId: foundUser.id,
+    name: foundUser.nama,
+    email: foundUser.email,
+    role: foundUser.role,
   });
 
-  // Arahkan ke dashboard sesuai role
-  if (user.role === "ADMIN") {
-    redirect("/admin/dashboard");
-  } else if (user.role === "TEACHER") {
-    redirect("/teacher/dashboard");
+  // Arahkan ke dashboard sesuai role baru dalam bahasa indonesia
+  if (foundUser.role === "ADMIN") {
+    redirect("/admin");
+  } else if (foundUser.role === "GURU") {
+    redirect("/guru");
   } else {
-    redirect("/student/dashboard");
+    redirect("/siswa");
   }
 }
 

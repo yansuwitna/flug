@@ -15,13 +15,13 @@ import {
   BookOpen,
   ArrowLeft,
 } from "lucide-react";
-import { ContentType, ChallengeType } from "@prisma/client";
+import { TipeKonten, TipeTantangan } from "@prisma/client";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 interface LearningContentItem {
   id: string;
-  contentType: ContentType;
+  contentType: TipeKonten;
   title: string;
   body: string | null;
   mediaUrl: string | null;
@@ -33,23 +33,23 @@ interface ClueItem {
   title: string;
   hintText: string;
   penaltyXp: number;
-  orderIndex: number;
+  orderIndex?: number;
 }
 
 interface ChallengeOptionItem {
   id: string;
   optionText: string;
-  orderIndex: number;
+  orderIndex?: number;
 }
 
 interface ChallengeItem {
   id: string;
   title: string;
   question: string;
-  challengeType: ChallengeType;
+  challengeType: TipeTantangan;
   points: number;
   orderIndex: number;
-  maxTries: number;
+  maxTries?: number;
   clues: ClueItem[];
   options: ChallengeOptionItem[];
 }
@@ -152,9 +152,9 @@ export function MissionWorkspace({
       <header className="px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3">
           <Link
-            href="/student/dashboard"
+            href="/siswa"
             className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-emerald-600 transition"
-            title="Kembali ke Dashboard"
+            title="Kembali ke Dasbor"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>

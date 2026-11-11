@@ -7,390 +7,449 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  ADMIN
-  TEACHER
-  STUDENT
+enum StatusPengguna {
+  AKTIF
+  NONAKTIF
+  DITANGGUHKAN
+
+  @@map("status_pengguna")
 }
 
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
+enum TipeKonten {
+  VIDEO_SEMATAN
+  VIDEO_BERKAS
+  TEKS
+  TAUTAN
+  DOKUMEN
+
+  @@map("tipe_konten")
 }
 
-enum ContentType {
-  VIDEO_EMBED
-  VIDEO_FILE
-  TEXT
-  LINK
-  DOCUMENT
+enum TipeTantangan {
+  TEKS
+  NUMERIK
+  PILIHAN_GANDA
+  URUTAN
+  STUDI_KASUS
+
+  @@map("tipe_tantangan")
 }
 
-enum ChallengeType {
-  TEXT
-  NUMERIC
-  MULTIPLE_CHOICE
-  SEQUENCE
-  CASE_STUDY
+enum StatusMisi {
+  DRAF
+  DITERBITKAN
+  DIARSIPKAN
+
+  @@map("status_misi")
 }
 
-enum MissionStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
+enum StatusPercobaan {
+  SEDANG_BERJALAN
+  SELESAI
+  DITINGGALKAN
+
+  @@map("status_percobaan")
 }
 
-enum AttemptStatus {
-  IN_PROGRESS
-  COMPLETED
-  ABANDONED
-}
-
-enum XpSource {
-  MISSION_SOLVE
-  CHALLENGE_SOLVE
-  CLUE_PENALTY
+enum SumberXp {
+  SELESAI_MISI
+  SELESAI_TANTANGAN
+  PENALTI_PETUNJUK
   BONUS
+
+  @@map("sumber_xp")
 }
 
-model User {
-  id           String      @id @default(cuid())
-  name         String
-  email        String      @unique
-  passwordHash String
-  role         Role        @default(STUDENT)
-  status       UserStatus  @default(ACTIVE)
-  avatarUrl    String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+model Admin {
+  id           String         @id @default(cuid()) @map("id")
+  nama         String         @map("nama")
+  email        String         @unique @map("email")
+  kataSandi    String         @map("kata_sandi")
+  status       StatusPengguna @default(AKTIF) @map("status")
+  urlFoto      String?        @map("url_foto")
+  dibuatPada   DateTime       @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime     @updatedAt @map("diperbarui_pada")
 
-  // Relasi
-  classMembers    ClassMember[]
-  classSubjects   ClassSubject[]
-  createdMissions Mission[]
-  attempts        MissionAttempt[]
-  xpTransactions  XpTransaction[]
-  userBadges      UserBadge[]
-  auditLogs       AuditLog[]
+  logAudit     LogAudit[]
 
-  @@index([role])
   @@index([email])
+  @@map("admin")
 }
 
-model AcademicYear {
-  id        String        @id @default(cuid())
-  name      String        @unique // Contoh: "2025/2026 Ganjil"
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean       @default(false)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+model Guru {
+  id           String         @id @default(cuid()) @map("id")
+  nip          String?        @unique @map("nip")
+  nama         String         @map("nama")
+  email        String         @unique @map("email")
+  kataSandi    String         @map("kata_sandi")
+  status       StatusPengguna @default(AKTIF) @map("status")
+  urlFoto      String?        @map("url_foto")
+  dibuatPada   DateTime       @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime     @updatedAt @map("diperbarui_pada")
 
-  classes   SchoolClass[]
+  mapelKelas   MapelKelas[]
+  misiDibuat   Misi[]
+
+  @@index([email])
+  @@map("guru")
 }
 
-model SchoolClass {
-  id             String       @id @default(cuid())
-  name           String       // Contoh: "X RPL 1"
-  gradeLevel     Int          // Tingkat kelas: 10, 11, 12, dll
-  major          String?      // Program/Jurusan: "Rekayasa Perangkat Lunak"
-  academicYearId String
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+model Siswa {
+  id             String          @id @default(cuid()) @map("id")
+  nisn           String?         @unique @map("nisn")
+  nama           String          @map("nama")
+  email          String          @unique @map("email")
+  kataSandi      String          @map("kata_sandi")
+  status         StatusPengguna  @default(AKTIF) @map("status")
+  urlFoto        String?         @map("url_foto")
+  dibuatPada     DateTime        @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime        @updatedAt @map("diperbarui_pada")
 
-  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  members        ClassMember[]
-  classSubjects  ClassSubject[]
+  anggotaKelas   AnggotaKelas[]
+  percobaanMisi  PercobaanMisi[]
+  transaksiXp    TransaksiXp[]
+  lencanaSiswa   LencanaSiswa[]
 
-  @@unique([name, academicYearId])
-  @@index([academicYearId])
+  @@index([email])
+  @@map("siswa")
 }
 
-model ClassMember {
-  id        String      @id @default(cuid())
-  classId   String
-  userId    String
-  role      Role        @default(STUDENT)
-  joinedAt  DateTime    @default(now())
+model TahunAjaran {
+  id          String   @id @default(cuid()) @map("id")
+  nama        String   @unique @map("nama") // Contoh: "2025/2026 Ganjil"
+  tanggalMulai DateTime @map("tanggal_mulai")
+  tanggalSelesai DateTime @map("tanggal_selesai")
+  aktif       Boolean  @default(false) @map("aktif")
+  dibuatPada  DateTime @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime @updatedAt @map("diperbarui_pada")
 
-  schoolClass SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kelas       Kelas[]
 
-  @@unique([classId, userId])
-  @@index([userId])
-  @@index([classId])
+  @@map("tahun_ajaran")
 }
 
-model Subject {
-  id          String         @id @default(cuid())
-  code        String         @unique // Contoh: "TIK-01"
-  name        String         // Contoh: "Teknologi Informasi & Jaringan"
-  description String?        @db.Text
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+model Kelas {
+  id            String       @id @default(cuid()) @map("id")
+  nama          String       @map("nama") // Contoh: "X RPL 1"
+  tingkat       Int          @map("tingkat") // Tingkat kelas: 10, 11, 12
+  jurusan       String?      @map("jurusan") // Program/Jurusan: "Rekayasa Perangkat Lunak"
+  idTahunAjaran String       @map("id_tahun_ajaran")
+  dibuatPada    DateTime     @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime    @updatedAt @map("diperbarui_pada")
 
-  chapters      Chapter[]
-  classSubjects ClassSubject[]
+  tahunAjaran   TahunAjaran  @relation(fields: [idTahunAjaran], references: [id], onDelete: Cascade)
+  anggota       AnggotaKelas[]
+  mapelKelas    MapelKelas[]
+
+  @@unique([nama, idTahunAjaran])
+  @@index([idTahunAjaran])
+  @@map("kelas")
 }
 
-model ClassSubject {
-  id        String      @id @default(cuid())
-  classId   String
-  subjectId String
-  teacherId String
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+model AnggotaKelas {
+  id          String   @id @default(cuid()) @map("id")
+  idKelas     String   @map("id_kelas")
+  idSiswa     String   @map("id_siswa")
+  bergabungPada DateTime @default(now()) @map("bergabung_pada")
 
-  schoolClass SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
-  subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  teacher     User        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  missions    Mission[]
+  kelas       Kelas    @relation(fields: [idKelas], references: [id], onDelete: Cascade)
+  siswa       Siswa    @relation(fields: [idSiswa], references: [id], onDelete: Cascade)
 
-  @@unique([classId, subjectId, teacherId])
-  @@index([classId])
-  @@index([subjectId])
-  @@index([teacherId])
+  @@unique([idKelas, idSiswa])
+  @@index([idSiswa])
+  @@index([idKelas])
+  @@map("anggota_kelas")
 }
 
-model Chapter {
-  id          String    @id @default(cuid())
-  subjectId   String
-  title       String    // Contoh: "Dasar Jaringan Komputer"
-  description String?   @db.Text
-  orderIndex  Int       @default(1)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model MataPelajaran {
+  id          String       @id @default(cuid()) @map("id")
+  kode        String       @unique @map("kode") // Contoh: "INF-X"
+  nama        String       @map("nama") // Contoh: "Informatika & Jaringan Dasar"
+  deskripsi   String?      @db.Text @map("deskripsi")
+  dibuatPada  DateTime     @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime  @updatedAt @map("diperbarui_pada")
 
-  subject  Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  missions Mission[]
+  bab         Bab[]
+  mapelKelas  MapelKelas[]
 
-  @@index([subjectId])
+  @@map("mata_pelajaran")
 }
 
-model Mission {
-  id                 String         @id @default(cuid())
-  classSubjectId     String
-  chapterId          String
-  creatorId          String
-  title              String
-  slug               String         @unique
-  description        String         @db.Text
-  learningObjectives String?        @db.Text
-  difficulty         String         @default("MEDIUM") // EASY, MEDIUM, HARD
-  status             MissionStatus  @default(DRAFT)
-  durationMinutes    Int?           // Batas waktu opsional (menit)
-  maxAttempts        Int            @default(3)
-  totalPoints        Int            @default(0)
-  orderIndex         Int            @default(1)
-  publishedAt        DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+model MapelKelas {
+  id              String        @id @default(cuid()) @map("id")
+  idKelas         String        @map("id_kelas")
+  idMataPelajaran String        @map("id_mata_pelajaran")
+  idGuru          String        @map("id_guru")
+  dibuatPada      DateTime      @default(now()) @map("dibuat_pada")
+  diperbaruiPada  DateTime      @updatedAt @map("diperbarui_pada")
 
-  classSubject    ClassSubject      @relation(fields: [classSubjectId], references: [id], onDelete: Cascade)
-  chapter         Chapter           @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  creator         User              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  learningContent LearningContent[]
-  challenges      Challenge[]
-  attempts        MissionAttempt[]
+  kelas           Kelas         @relation(fields: [idKelas], references: [id], onDelete: Cascade)
+  mataPelajaran   MataPelajaran @relation(fields: [idMataPelajaran], references: [id], onDelete: Cascade)
+  guru            Guru          @relation(fields: [idGuru], references: [id], onDelete: Cascade)
+  misi            Misi[]
 
-  @@index([classSubjectId])
-  @@index([chapterId])
-  @@index([creatorId])
+  @@unique([idKelas, idMataPelajaran, idGuru])
+  @@index([idKelas])
+  @@index([idMataPelajaran])
+  @@index([idGuru])
+  @@map("mapel_kelas")
+}
+
+model Bab {
+  id              String        @id @default(cuid()) @map("id")
+  idMataPelajaran String        @map("id_mata_pelajaran")
+  judul           String        @map("judul")
+  deskripsi       String?       @db.Text @map("deskripsi")
+  nomorUrut       Int           @default(1) @map("nomor_urut")
+  dibuatPada      DateTime      @default(now()) @map("dibuat_pada")
+  diperbaruiPada  DateTime      @updatedAt @map("diperbarui_pada")
+
+  mataPelajaran   MataPelajaran @relation(fields: [idMataPelajaran], references: [id], onDelete: Cascade)
+  misi            Misi[]
+
+  @@index([idMataPelajaran])
+  @@map("bab")
+}
+
+model Misi {
+  id              String            @id @default(cuid()) @map("id")
+  idMapelKelas    String            @map("id_mapel_kelas")
+  idBab           String            @map("id_bab")
+  idPembuat       String            @map("id_pembuat")
+  judul           String            @map("judul")
+  slug            String            @unique @map("slug")
+  deskripsi       String            @db.Text @map("deskripsi")
+  tujuanBelajar   String?           @db.Text @map("tujuan_belajar")
+  tingkatKesulitan String           @default("SEDANG") @map("tingkat_kesulitan") // MUDAH, SEDANG, SULIT
+  status          StatusMisi        @default(DRAF) @map("status")
+  durasiMenit     Int?              @map("durasi_menit")
+  maksPercobaan   Int               @default(3) @map("maks_percobaan")
+  totalPoin       Int               @default(0) @map("total_poin")
+  nomorUrut       Int               @default(1) @map("nomor_urut")
+  diterbitkanPada DateTime?         @map("diterbitkan_pada")
+  dibuatPada      DateTime          @default(now()) @map("dibuat_pada")
+  diperbaruiPada  DateTime          @updatedAt @map("diperbarui_pada")
+
+  mapelKelas      MapelKelas        @relation(fields: [idMapelKelas], references: [id], onDelete: Cascade)
+  bab             Bab               @relation(fields: [idBab], references: [id], onDelete: Cascade)
+  pembuat         Guru              @relation(fields: [idPembuat], references: [id], onDelete: Cascade)
+  kontenBelajar   KontenBelajar[]
+  tantangan       Tantangan[]
+  percobaan       PercobaanMisi[]
+
+  @@index([idMapelKelas])
+  @@index([idBab])
+  @@index([idPembuat])
   @@index([status])
+  @@map("misi")
 }
 
-model LearningContent {
-  id          String      @id @default(cuid())
-  missionId   String
-  contentType ContentType @default(TEXT)
-  title       String
-  body        String?     @db.LongText
-  mediaUrl    String?     // Video URL atau Link dokumen
-  orderIndex  Int         @default(1)
-  durationSec Int?        // Durasi estimasi (detik)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+model KontenBelajar {
+  id          String     @id @default(cuid()) @map("id")
+  idMisi      String     @map("id_misi")
+  tipeKonten  TipeKonten @default(TEKS) @map("tipe_konten")
+  judul       String     @map("judul")
+  isi         String?    @db.LongText @map("isi")
+  urlMedia    String?    @map("url_media")
+  nomorUrut   Int        @default(1) @map("nomor_urut")
+  durasiDetik Int?       @map("durasi_detik")
+  dibuatPada  DateTime   @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime @updatedAt @map("diperbarui_pada")
 
-  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  misi        Misi       @relation(fields: [idMisi], references: [id], onDelete: Cascade)
 
-  @@index([missionId])
+  @@index([idMisi])
+  @@map("konten_belajar")
 }
 
-model Challenge {
-  id            String        @id @default(cuid())
-  missionId     String
-  title         String
-  question      String        @db.Text
-  description   String?       @db.Text
-  challengeType ChallengeType @default(TEXT)
-  points        Int           @default(100)
-  orderIndex    Int           @default(1)
-  maxTries      Int           @default(5)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+model Tantangan {
+  id            String        @id @default(cuid()) @map("id")
+  idMisi        String        @map("id_misi")
+  judul         String        @map("judul")
+  pertanyaan    String        @db.Text @map("pertanyaan")
+  deskripsi     String?       @db.Text @map("deskripsi")
+  tipeTantangan TipeTantangan @default(TEKS) @map("tipe_tantangan")
+  poin          Int           @default(100) @map("poin")
+  nomorUrut     Int           @default(1) @map("nomor_urut")
+  maksMencoba   Int           @default(5) @map("maks_mencoba")
+  dibuatPada    DateTime      @default(now()) @map("dibuat_pada")
+  diperbaruiPada DateTime     @updatedAt @map("diperbarui_pada")
 
-  mission         Mission           @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  options         ChallengeOption[]
-  flagAnswers     FlagAnswer[]
-  clues           Clue[]
-  flagSubmissions FlagSubmission[]
+  misi          Misi          @relation(fields: [idMisi], references: [id], onDelete: Cascade)
+  opsi          OpsiTantangan[]
+  kunciJawaban  KunciJawaban[]
+  petunjuk      Petunjuk[]
+  kirimanJawaban KirimanJawaban[]
 
-  @@index([missionId])
+  @@index([idMisi])
+  @@map("tantangan")
 }
 
-model ChallengeOption {
-  id          String    @id @default(cuid())
-  challengeId String
-  optionText  String
-  orderIndex  Int       @default(1)
-  createdAt   DateTime  @default(now())
+model OpsiTantangan {
+  id          String    @id @default(cuid()) @map("id")
+  idTantangan String    @map("id_tantangan")
+  teksOpsi    String    @map("teks_opsi")
+  nomorUrut   Int       @default(1) @map("nomor_urut")
+  dibuatPada  DateTime  @default(now()) @map("dibuat_pada")
 
-  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  tantangan   Tantangan @relation(fields: [idTantangan], references: [id], onDelete: Cascade)
 
-  @@index([challengeId])
+  @@index([idTantangan])
+  @@map("opsi_tantangan")
 }
 
-model FlagAnswer {
-  id              String   @id @default(cuid())
-  challengeId     String
-  answerHash      String   // SHA-256 / HMAC hash dari flag jawaban yang sudah dinormalisasi
-  isCaseSensitive Boolean  @default(false)
-  trimSpaces      Boolean  @default(true)
-  createdAt       DateTime @default(now())
+model KunciJawaban {
+  id                String    @id @default(cuid()) @map("id")
+  idTantangan       String    @map("id_tantangan")
+  hashJawaban       String    @map("hash_jawaban") // HMAC-SHA256 hash
+  hurufBesarKecil   Boolean   @default(false) @map("huruf_besar_kecil")
+  pangkasSpasi      Boolean   @default(true) @map("pangkas_spasi")
+  dibuatPada        DateTime  @default(now()) @map("dibuat_pada")
 
-  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  tantangan         Tantangan @relation(fields: [idTantangan], references: [id], onDelete: Cascade)
 
-  @@index([challengeId])
+  @@index([idTantangan])
+  @@map("kunci_jawaban")
 }
 
-model Clue {
-  id          String      @id @default(cuid())
-  challengeId String
-  title       String      // Contoh: "Petunjuk 1 (Umum)"
-  hintText    String      @db.Text
-  penaltyXp   Int         @default(0) // Pengurangan XP bila clue dibuka
-  orderIndex  Int         @default(1)
-  createdAt   DateTime    @default(now())
+model Petunjuk {
+  id             String          @id @default(cuid()) @map("id")
+  idTantangan    String          @map("id_tantangan")
+  judul          String          @map("judul")
+  teksPetunjuk   String          @db.Text @map("teks_petunjuk")
+  penaltiXp      Int             @default(0) @map("penalti_xp")
+  nomorUrut      Int             @default(1) @map("nomor_urut")
+  dibuatPada     DateTime        @default(now()) @map("dibuat_pada")
 
-  challenge  Challenge   @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  clueUsages ClueUsage[]
+  tantangan      Tantangan       @relation(fields: [idTantangan], references: [id], onDelete: Cascade)
+  penggunaanPetunjuk PenggunaanPetunjuk[]
 
-  @@index([challengeId])
+  @@index([idTantangan])
+  @@map("petunjuk")
 }
 
-model MissionAttempt {
-  id            String        @id @default(cuid())
-  userId        String
-  missionId     String
-  attemptNumber Int           @default(1)
-  status        AttemptStatus @default(IN_PROGRESS)
-  startedAt     DateTime      @default(now())
-  completedAt   DateTime?
+model PercobaanMisi {
+  id             String          @id @default(cuid()) @map("id")
+  idSiswa        String          @map("id_siswa")
+  idMisi         String          @map("id_misi")
+  nomorPercobaan Int             @default(1) @map("nomor_percobaan")
+  status         StatusPercobaan @default(SEDANG_BERJALAN) @map("status")
+  dimulaiPada    DateTime        @default(now()) @map("dimulai_pada")
+  selesaiPada    DateTime?       @map("selesai_pada")
 
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mission         Mission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  flagSubmissions FlagSubmission[]
-  clueUsages      ClueUsage[]
-  result          MissionResult?
+  siswa          Siswa           @relation(fields: [idSiswa], references: [id], onDelete: Cascade)
+  misi           Misi            @relation(fields: [idMisi], references: [id], onDelete: Cascade)
+  kirimanJawaban KirimanJawaban[]
+  penggunaanPetunjuk PenggunaanPetunjuk[]
+  hasil          HasilMisi?
 
-  @@unique([userId, missionId, attemptNumber])
-  @@index([userId])
-  @@index([missionId])
+  @@unique([idSiswa, idMisi, nomorPercobaan])
+  @@index([idSiswa])
+  @@index([idMisi])
+  @@map("percobaan_misi")
 }
 
-model FlagSubmission {
-  id              String         @id @default(cuid())
-  attemptId       String
-  challengeId     String
-  submittedAnswer String         // Jawaban mentah yang dikirim siswa (disimpan untuk audit)
-  isCorrect       Boolean        @default(false)
-  pointsAwarded   Int            @default(0)
-  submittedAt     DateTime       @default(now())
+model KirimanJawaban {
+  id             String        @id @default(cuid()) @map("id")
+  idPercobaan    String        @map("id_percobaan")
+  idTantangan    String        @map("id_tantangan")
+  jawabanTerkirim String       @map("jawaban_terkirim")
+  benar          Boolean       @default(false) @map("benar")
+  poinDidapat    Int           @default(0) @map("poin_didapat")
+  dikirimPada    DateTime      @default(now()) @map("dikirim_pada")
 
-  attempt   MissionAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  challenge Challenge      @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  percobaan      PercobaanMisi @relation(fields: [idPercobaan], references: [id], onDelete: Cascade)
+  tantangan      Tantangan     @relation(fields: [idTantangan], references: [id], onDelete: Cascade)
 
-  @@index([attemptId])
-  @@index([challengeId])
+  @@index([idPercobaan])
+  @@index([idTantangan])
+  @@map("kiriman_jawaban")
 }
 
-model ClueUsage {
-  id              String         @id @default(cuid())
-  attemptId       String
-  clueId          String
-  penaltyDeducted Int            @default(0)
-  unlockedAt      DateTime       @default(now())
+model PenggunaanPetunjuk {
+  id             String        @id @default(cuid()) @map("id")
+  idPercobaan    String        @map("id_percobaan")
+  idPetunjuk     String        @map("id_petunjuk")
+  penaltiDipotong Int          @default(0) @map("penalti_dipotong")
+  dibukaPada     DateTime      @default(now()) @map("dibuka_pada")
 
-  attempt MissionAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  clue    Clue           @relation(fields: [clueId], references: [id], onDelete: Cascade)
+  percobaan      PercobaanMisi @relation(fields: [idPercobaan], references: [id], onDelete: Cascade)
+  petunjuk       Petunjuk      @relation(fields: [idPetunjuk], references: [id], onDelete: Cascade)
 
-  @@unique([attemptId, clueId])
-  @@index([attemptId])
-  @@index([clueId])
+  @@unique([idPercobaan, idPetunjuk])
+  @@index([idPercobaan])
+  @@index([idPetunjuk])
+  @@map("penggunaan_petunjuk")
 }
 
-model MissionResult {
-  id          String         @id @default(cuid())
-  attemptId   String         @unique
-  totalScore  Int            @default(0)
-  xpEarned    Int            @default(0)
-  completedAt DateTime       @default(now())
+model HasilMisi {
+  id             String        @id @default(cuid()) @map("id")
+  idPercobaan    String        @unique @map("id_percobaan")
+  totalSkor      Int           @default(0) @map("total_skor")
+  xpDidapat      Int           @default(0) @map("xp_didapat")
+  selesaiPada    DateTime      @default(now()) @map("selesai_pada")
 
-  attempt MissionAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  percobaan      PercobaanMisi @relation(fields: [idPercobaan], references: [id], onDelete: Cascade)
+
+  @@map("hasil_misi")
 }
 
-model XpTransaction {
-  id          String   @id @default(cuid())
-  userId      String
-  amount      Int      // Positif (penambahan) atau negatif (penalti)
-  source      XpSource
-  referenceId String?  // ID attempt atau submission terkait
-  description String
-  createdAt   DateTime @default(now())
+model TransaksiXp {
+  id           String    @id @default(cuid()) @map("id")
+  idSiswa      String    @map("id_siswa")
+  jumlah       Int       @map("jumlah") // Positif (penambahan) atau negatif (penalti)
+  sumber       SumberXp  @map("sumber")
+  idReferensi  String?   @map("id_referensi")
+  deskripsi    String    @map("deskripsi")
+  dibuatPada   DateTime  @default(now()) @map("dibuat_pada")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  siswa        Siswa     @relation(fields: [idSiswa], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([source])
+  @@index([idSiswa])
+  @@index([sumber])
+  @@map("transaksi_xp")
 }
 
-model Badge {
-  id          String      @id @default(cuid())
-  name        String      @unique
-  slug        String      @unique
-  description String
-  iconUrl     String?
-  criteria    String      // JSON kriteria unlock badge
-  createdAt   DateTime    @default(now())
+model Lencana {
+  id          String         @id @default(cuid()) @map("id")
+  nama        String         @unique @map("nama")
+  slug        String         @unique @map("slug")
+  deskripsi   String         @map("deskripsi")
+  urlIkon     String?        @map("url_ikon")
+  kriteria    String         @map("kriteria") // JSON kriteria unlock
+  dibuatPada  DateTime       @default(now()) @map("dibuat_pada")
 
-  userBadges UserBadge[]
+  lencanaSiswa LencanaSiswa[]
+
+  @@map("lencana")
 }
 
-model UserBadge {
-  id        String   @id @default(cuid())
-  userId    String
-  badgeId   String
-  awardedAt DateTime @default(now())
+model LencanaSiswa {
+  id           String    @id @default(cuid()) @map("id")
+  idSiswa      String    @map("id_siswa")
+  idLencana    String    @map("id_lencana")
+  diberikanPada DateTime @default(now()) @map("diberikan_pada")
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  siswa        Siswa     @relation(fields: [idSiswa], references: [id], onDelete: Cascade)
+  lencana      Lencana   @relation(fields: [idLencana], references: [id], onDelete: Cascade)
 
-  @@unique([userId, badgeId])
-  @@index([userId])
-  @@index([badgeId])
+  @@unique([idSiswa, idLencana])
+  @@index([idSiswa])
+  @@index([idLencana])
+  @@map("lencana_siswa")
 }
 
-model AuditLog {
-  id             String   @id @default(cuid())
-  actorId        String?
-  action         String
-  targetResource String
-  metadata       String?  @db.Text
-  createdAt      DateTime @default(now())
+model LogAudit {
+  id          String   @id @default(cuid()) @map("id")
+  idAdmin     String?  @map("id_admin")
+  aksi        String   @map("aksi")
+  target      String   @map("target")
+  metadata    String?  @db.Text @map("metadata")
+  dibuatPada  DateTime @default(now()) @map("dibuat_pada")
 
-  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  admin       Admin?   @relation(fields: [idAdmin], references: [id], onDelete: SetNull)
 
-  @@index([actorId])
-  @@index([action])
+  @@index([idAdmin])
+  @@index([aksi])
+  @@map("log_audit")
 }

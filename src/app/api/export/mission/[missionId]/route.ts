@@ -1,25 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
-import { exportMissionResultsCSV } from "@/features/reports/export";
+import { NextResponse } from "next/server";
+import { exportMissionResultsCsvAction } from "@/features/reports/export";
+import { getCurrentUser } from "@/lib/auth/session";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ missionId: string }> }
 ) {
+  const { missionId } = await params;
+  const user = await getCurrentUser();
+
+  if (!user || (user.role !== "GURU" && user.role !== "ADMIN")) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
   try {
-    const { missionId } = await params;
-    const csvContent = await exportMissionResultsCSV(missionId);
+    const csvContent = await exportMissionResultsCsvAction(missionId);
+
+    const filename = `hasil-misi-${missionId.slice(-6)}-${new Date().toISOString().slice(0, 10)}.csv`;
 
     return new NextResponse(csvContent, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="laporan-mission-${missionId}.csv"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Gagal mengunduh laporan";
-    return new NextResponse(message, {
-      status: 400,
-    });
+  } catch (err: any) {
+    return new NextResponse(err?.message || "Internal Error", { status: 500 });
   }
 }

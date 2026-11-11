@@ -5,11 +5,11 @@ import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ContentType, MissionStatus } from "@prisma/client";
+import { TipeKonten, StatusMisi } from "@prisma/client";
 
 async function requireTeacherOrAdmin() {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "TEACHER" && user.role !== "ADMIN")) {
+  if (!user || (user.role !== "GURU" && user.role !== "ADMIN")) {
     throw new Error("Unauthorized: Hanya Guru atau Administrator yang berwenang");
   }
   return user;
@@ -19,30 +19,32 @@ async function requireTeacherOrAdmin() {
 // 1. BUAT MISSION BARU (Langkah 1 Wizard)
 // -----------------------------------------------------------------------------
 const createMissionSchema = z.object({
-  classSubjectId: z.string().min(1, "Pilih kelas & mata pelajaran"),
-  chapterId: z.string().min(1, "Pilih bab pembelajaran"),
-  title: z.string().min(3, "Judul mission minimal 3 karakter"),
-  description: z.string().min(10, "Deskripsi mission minimal 10 karakter"),
-  learningObjectives: z.string().optional(),
-  difficulty: z.enum(["EASY", "MEDIUM", "HARD"]).default("MEDIUM"),
-  durationMinutes: z.coerce.number().optional(),
-  maxAttempts: z.coerce.number().min(1).default(3),
+  idMapelKelas: z.string().min(1, "Pilih kelas & mata pelajaran"),
+  idBab: z.string().min(1, "Pilih bab pembelajaran"),
+  judul: z.string().min(3, "Judul mission minimal 3 karakter"),
+  deskripsi: z.string().min(10, "Deskripsi mission minimal 10 karakter"),
+  tujuanBelajar: z.string().optional(),
+  tingkatKesulitan: z.enum(["MUDAH", "SEDANG", "SULIT"]).default("SEDANG"),
+  durasiMenit: z.coerce.number().optional(),
+  maksPercobaan: z.coerce.number().min(1).default(3),
 });
 
 export async function createMissionAction(formData: FormData): Promise<void> {
   const user = await requireTeacherOrAdmin();
 
   const validated = createMissionSchema.safeParse({
-    classSubjectId: formData.get("classSubjectId"),
-    chapterId: formData.get("chapterId"),
-    title: formData.get("title"),
-    description: formData.get("description"),
-    learningObjectives: formData.get("learningObjectives") || undefined,
-    difficulty: formData.get("difficulty") || "MEDIUM",
-    durationMinutes: formData.get("durationMinutes")
-      ? Number(formData.get("durationMinutes"))
+    idMapelKelas: formData.get("classSubjectId") || formData.get("idMapelKelas"),
+    idBab: formData.get("chapterId") || formData.get("idBab"),
+    judul: formData.get("title") || formData.get("judul"),
+    deskripsi: formData.get("description") || formData.get("deskripsi"),
+    tujuanBelajar: (formData.get("learningObjectives") as string) || (formData.get("tujuanBelajar") as string) || undefined,
+    tingkatKesulitan: (formData.get("difficulty") as any) || (formData.get("tingkatKesulitan") as any) || "SEDANG",
+    durasiMenit: formData.get("durationMinutes") || formData.get("durasiMenit")
+      ? Number(formData.get("durationMinutes") || formData.get("durasiMenit"))
       : undefined,
-    maxAttempts: formData.get("maxAttempts") ? Number(formData.get("maxAttempts")) : 3,
+    maksPercobaan: formData.get("maxAttempts") || formData.get("maksPercobaan")
+      ? Number(formData.get("maxAttempts") || formData.get("maksPercobaan"))
+      : 3,
   });
 
   if (!validated.success) {
@@ -50,127 +52,129 @@ export async function createMissionAction(formData: FormData): Promise<void> {
   }
 
   const {
-    classSubjectId,
-    chapterId,
-    title,
-    description,
-    learningObjectives,
-    difficulty,
-    durationMinutes,
-    maxAttempts,
+    idMapelKelas,
+    idBab,
+    judul,
+    deskripsi,
+    tujuanBelajar,
+    tingkatKesulitan,
+    durasiMenit,
+    maksPercobaan,
   } = validated.data;
 
   // Generate slug unik
-  const baseSlug = title
+  const baseSlug = judul
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
   const slug = `${baseSlug}-${Date.now().toString().slice(-6)}`;
 
-  const newMission = await prisma.mission.create({
+  const newMission = await prisma.misi.create({
     data: {
-      classSubjectId,
-      chapterId,
-      creatorId: user.userId,
-      title,
+      idMapelKelas,
+      idBab,
+      idPembuat: user.userId,
+      judul,
       slug,
-      description,
-      learningObjectives,
-      difficulty,
-      durationMinutes,
-      maxAttempts,
-      status: MissionStatus.DRAFT,
+      deskripsi,
+      tujuanBelajar,
+      tingkatKesulitan,
+      durasiMenit,
+      maksPercobaan,
+      status: StatusMisi.DRAF,
     },
   });
 
-  revalidatePath("/teacher/missions");
-  revalidatePath("/teacher/dashboard");
-  redirect(`/teacher/missions/${newMission.id}/builder`);
+  revalidatePath("/guru/misi");
+  redirect(`/guru/misi/${newMission.id}/builder`);
 }
 
 // -----------------------------------------------------------------------------
-// 2. UPDATE STATUS MISSION (DRAFT / PUBLISHED / ARCHIVED)
+// 2. KELOLA STATUS MISSION (Publish / Unpublish / Archive)
 // -----------------------------------------------------------------------------
 export async function updateMissionStatusAction(
   missionId: string,
-  newStatus: MissionStatus
+  status: StatusMisi
 ): Promise<void> {
   await requireTeacherOrAdmin();
 
-  await prisma.mission.update({
+  await prisma.misi.update({
     where: { id: missionId },
     data: {
-      status: newStatus,
-      publishedAt: newStatus === MissionStatus.PUBLISHED ? new Date() : undefined,
+      status,
+      diterbitkanPada: status === StatusMisi.DITERBITKAN ? new Date() : undefined,
     },
   });
 
-  revalidatePath("/teacher/missions");
-  revalidatePath(`/teacher/missions/${missionId}/builder`);
-  revalidatePath("/student/dashboard");
+  revalidatePath("/guru/misi");
+  revalidatePath(`/guru/misi/${missionId}/preview`);
+  revalidatePath("/siswa");
 }
 
 // -----------------------------------------------------------------------------
-// 3. LEARNING CONTENT (Video Embed, Text, Link, Document)
+// 3. TAMBAH / HAPUS KONTEN MATERI (LearningContent)
 // -----------------------------------------------------------------------------
-const learningContentSchema = z.object({
-  missionId: z.string().min(1),
-  contentType: z.nativeEnum(ContentType),
-  title: z.string().min(2, "Judul konten wajib diisi"),
-  body: z.string().optional(),
-  mediaUrl: z.string().optional(),
-  orderIndex: z.coerce.number().default(1),
+const addContentSchema = z.object({
+  idMisi: z.string().min(1),
+  judul: z.string().min(3, "Judul materi minimal 3 karakter"),
+  tipeKonten: z.nativeEnum(TipeKonten).default(TipeKonten.TEKS),
+  isi: z.string().optional(),
+  urlMedia: z.string().optional(),
+  durasiDetik: z.coerce.number().optional(),
+  nomorUrut: z.coerce.number().default(1),
 });
 
 export async function addLearningContentAction(formData: FormData): Promise<void> {
   await requireTeacherOrAdmin();
 
-  const validated = learningContentSchema.safeParse({
-    missionId: formData.get("missionId"),
-    contentType: formData.get("contentType"),
-    title: formData.get("title"),
-    body: formData.get("body") || undefined,
-    mediaUrl: formData.get("mediaUrl") || undefined,
-    orderIndex: formData.get("orderIndex") || 1,
+  const validated = addContentSchema.safeParse({
+    idMisi: formData.get("missionId") || formData.get("idMisi"),
+    judul: formData.get("title") || formData.get("judul"),
+    tipeKonten: (formData.get("contentType") as any) || (formData.get("tipeKonten") as any) || TipeKonten.TEKS,
+    isi: (formData.get("body") as string) || (formData.get("isi") as string) || undefined,
+    urlMedia: (formData.get("mediaUrl") as string) || (formData.get("urlMedia") as string) || undefined,
+    durasiDetik: formData.get("durationSec") || formData.get("durasiDetik")
+      ? Number(formData.get("durationSec") || formData.get("durasiDetik"))
+      : undefined,
+    nomorUrut: Number(formData.get("orderIndex") || formData.get("nomorUrut") || 1),
   });
 
   if (!validated.success) {
     return;
   }
 
-  const { missionId, contentType, title, body, mediaUrl, orderIndex } = validated.data;
+  const { idMisi, judul, tipeKonten, isi, urlMedia, durasiDetik, nomorUrut } = validated.data;
 
-  await prisma.learningContent.create({
+  await prisma.kontenBelajar.create({
     data: {
-      missionId,
-      contentType,
-      title,
-      body,
-      mediaUrl,
-      orderIndex,
+      idMisi,
+      judul,
+      tipeKonten,
+      isi,
+      urlMedia,
+      durasiDetik,
+      nomorUrut,
     },
   });
 
-  revalidatePath(`/teacher/missions/${missionId}/builder`);
-  revalidatePath(`/teacher/missions/${missionId}/preview`);
+  revalidatePath(`/guru/misi/${idMisi}/builder`);
 }
 
 export async function deleteLearningContentAction(
   contentId: string,
-  missionId: string
+  idMisi: string
 ): Promise<void> {
   await requireTeacherOrAdmin();
-  await prisma.learningContent.delete({ where: { id: contentId } });
-  revalidatePath(`/teacher/missions/${missionId}/builder`);
-  revalidatePath(`/teacher/missions/${missionId}/preview`);
+  await prisma.kontenBelajar.delete({ where: { id: contentId } });
+  revalidatePath(`/guru/misi/${idMisi}/builder`);
 }
 
 // -----------------------------------------------------------------------------
-// 4. HAPUS MISSION
+// 4. HAPUS MISSION BESERTA SELURUH DATA TERKAIT
 // -----------------------------------------------------------------------------
-export async function deleteMissionAction(missionId: string): Promise<void> {
+export async function deleteMissionAction(idMisi: string): Promise<void> {
   await requireTeacherOrAdmin();
-  await prisma.mission.delete({ where: { id: missionId } });
-  revalidatePath("/teacher/missions");
-  revalidatePath("/teacher/dashboard");
+  await prisma.misi.delete({ where: { id: idMisi } });
+  revalidatePath("/guru/misi");
+  revalidatePath("/siswa");
 }

@@ -4,12 +4,12 @@ import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { AttemptStatus, MissionStatus } from "@prisma/client";
+import { StatusPercobaan, StatusMisi } from "@prisma/client";
 import { evaluateAndAwardBadges } from "@/features/gamification/levels";
 
 async function requireStudent() {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "STUDENT" && user.role !== "ADMIN")) {
+  if (!user || (user.role !== "SISWA" && user.role !== "ADMIN")) {
     throw new Error("Unauthorized: Akses khusus siswa");
   }
   return user;
@@ -18,19 +18,19 @@ async function requireStudent() {
 /**
  * Memulai atau melanjutkan attempt mission
  */
-export async function startOrResumeAttemptAction(missionId: string): Promise<void> {
+export async function startOrResumeAttemptAction(idMisi: string): Promise<void> {
   const user = await requireStudent();
 
   // 1. Validasi hak akses siswa ke kelas mission ini
-  const mission = await prisma.mission.findUnique({
-    where: { id: missionId },
+  const mission = await prisma.misi.findUnique({
+    where: { id: idMisi },
     include: {
-      classSubject: {
+      mapelKelas: {
         include: {
-          schoolClass: {
+          kelas: {
             include: {
-              members: {
-                where: { userId: user.userId },
+              anggota: {
+                where: { idSiswa: user.userId },
               },
             },
           },
@@ -39,113 +39,113 @@ export async function startOrResumeAttemptAction(missionId: string): Promise<voi
     },
   });
 
-  if (!mission || (mission.status !== MissionStatus.PUBLISHED && user.role !== "ADMIN")) {
-    throw new Error("Mission tidak ditemukan atau belum dipublikasikan");
+  if (!mission || (mission.status !== StatusMisi.DITERBITKAN && user.role !== "ADMIN")) {
+    throw new Error("Misi tidak ditemukan atau belum dipublikasikan");
   }
 
   // Jika bukan admin, pastikan siswa terdaftar di kelas bersangkutan
-  if (user.role !== "ADMIN" && mission.classSubject.schoolClass.members.length === 0) {
-    throw new Error("Anda tidak terdaftar di kelas untuk mission ini");
+  if (user.role !== "ADMIN" && mission.mapelKelas.kelas.anggota.length === 0) {
+    throw new Error("Anda tidak terdaftar di kelas untuk misi ini");
   }
 
-  // 2. Cek apakah ada attempt yang sedang IN_PROGRESS
-  let attempt = await prisma.missionAttempt.findFirst({
+  // 2. Cek apakah ada attempt yang sedang SEDANG_BERJALAN
+  let attempt = await prisma.percobaanMisi.findFirst({
     where: {
-      userId: user.userId,
-      missionId,
-      status: AttemptStatus.IN_PROGRESS,
+      idSiswa: user.userId,
+      idMisi,
+      status: StatusPercobaan.SEDANG_BERJALAN,
     },
   });
 
   if (!attempt) {
     // Hitung total attempt sebelumnya
-    const totalPreviousAttempts = await prisma.missionAttempt.count({
-      where: { userId: user.userId, missionId },
+    const totalPreviousAttempts = await prisma.percobaanMisi.count({
+      where: { idSiswa: user.userId, idMisi },
     });
 
-    if (totalPreviousAttempts >= mission.maxAttempts) {
+    if (totalPreviousAttempts >= mission.maksPercobaan) {
       throw new Error("Anda telah mencapai batas maksimal percobaan untuk misi ini");
     }
 
     // Buat attempt baru
-    attempt = await prisma.missionAttempt.create({
+    attempt = await prisma.percobaanMisi.create({
       data: {
-        userId: user.userId,
-        missionId,
-        attemptNumber: totalPreviousAttempts + 1,
-        status: AttemptStatus.IN_PROGRESS,
+        idSiswa: user.userId,
+        idMisi,
+        nomorPercobaan: totalPreviousAttempts + 1,
+        status: StatusPercobaan.SEDANG_BERJALAN,
       },
     });
   }
 
-  revalidatePath(`/student/missions/${missionId}/play`);
-  redirect(`/student/missions/${missionId}/play`);
+  revalidatePath(`/siswa/misi/${idMisi}/kerjakan`);
+  redirect(`/siswa/misi/${idMisi}/kerjakan`);
 }
 
 /**
  * Menyelesaikan Attempt Misi & Menghitung Skor Final
  */
-export async function completeAttemptAction(attemptId: string): Promise<void> {
+export async function completeAttemptAction(idPercobaan: string): Promise<void> {
   const user = await requireStudent();
 
-  const attempt = await prisma.missionAttempt.findUnique({
-    where: { id: attemptId },
+  const attempt = await prisma.percobaanMisi.findUnique({
+    where: { id: idPercobaan },
     include: {
-      flagSubmissions: {
-        where: { isCorrect: true },
+      kirimanJawaban: {
+        where: { benar: true },
       },
-      clueUsages: true,
-      mission: {
-        include: { challenges: true },
+      penggunaanPetunjuk: true,
+      misi: {
+        include: { tantangan: true },
       },
     },
   });
 
-  if (!attempt || attempt.userId !== user.userId) {
-    throw new Error("Attempt tidak valid");
+  if (!attempt || attempt.idSiswa !== user.userId) {
+    throw new Error("Percobaan tidak valid");
   }
 
   // Hitung total poin yang diperoleh dari challenge yang dijawab benar
-  const totalScore = attempt.flagSubmissions.reduce(
-    (sum, sub) => sum + sub.pointsAwarded,
+  const totalScore = attempt.kirimanJawaban.reduce(
+    (sum, sub) => sum + sub.poinDidapat,
     0
   );
 
   await prisma.$transaction(async (tx) => {
-    // 1. Update status attempt ke COMPLETED
-    await tx.missionAttempt.update({
-      where: { id: attemptId },
+    // 1. Update status attempt ke SELESAI
+    await tx.percobaanMisi.update({
+      where: { id: idPercobaan },
       data: {
-        status: AttemptStatus.COMPLETED,
-        completedAt: new Date(),
+        status: StatusPercobaan.SELESAI,
+        selesaiPada: new Date(),
       },
     });
 
-    // 2. Buat atau perbarui MissionResult
-    await tx.missionResult.upsert({
-      where: { attemptId },
+    // 2. Buat atau perbarui HasilMisi
+    await tx.hasilMisi.upsert({
+      where: { idPercobaan },
       create: {
-        attemptId,
-        totalScore,
-        xpEarned: totalScore,
-        completedAt: new Date(),
+        idPercobaan,
+        totalSkor: totalScore,
+        xpDidapat: totalScore,
+        selesaiPada: new Date(),
       },
       update: {
-        totalScore,
-        xpEarned: totalScore,
-        completedAt: new Date(),
+        totalSkor: totalScore,
+        xpDidapat: totalScore,
+        selesaiPada: new Date(),
       },
     });
 
-    // 3. Catat XpTransaction jika skor > 0
+    // 3. Catat TransaksiXp jika skor > 0
     if (totalScore > 0) {
-      await tx.xpTransaction.create({
+      await tx.transaksiXp.create({
         data: {
-          userId: user.userId,
-          amount: totalScore,
-          source: "MISSION_SOLVE",
-          referenceId: attemptId,
-          description: `Menyelesaikan Misi: ${attempt.mission.title}`,
+          idSiswa: user.userId,
+          jumlah: totalScore,
+          sumber: "SELESAI_MISI",
+          idReferensi: idPercobaan,
+          deskripsi: `Menyelesaikan Misi: ${attempt.misi.judul}`,
         },
       });
     }
@@ -154,10 +154,9 @@ export async function completeAttemptAction(attemptId: string): Promise<void> {
   // Evaluasi dan beri badge jika memenuhi kriteria
   await evaluateAndAwardBadges(user.userId);
 
-  revalidatePath("/student/dashboard");
-  revalidatePath("/student/missions");
-  revalidatePath("/student/achievements");
-  revalidatePath("/student/leaderboard");
-  revalidatePath(`/student/missions/${attempt.missionId}`);
-  redirect(`/student/dashboard`);
+  revalidatePath("/siswa");
+  revalidatePath("/siswa/prestasi");
+  revalidatePath("/siswa/peringkat");
+  revalidatePath(`/siswa/misi/${attempt.idMisi}`);
+  redirect(`/siswa`);
 }

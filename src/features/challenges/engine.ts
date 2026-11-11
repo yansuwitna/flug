@@ -7,16 +7,15 @@ import { normalizeFlag, hashFlag } from "@/lib/security/hash";
 import { revalidatePath } from "next/cache";
 
 // Sederhana in-memory rate limiter untuk proteksi submit flag per user & challenge
-// format: `${userId}:${challengeId}` -> Array of timestamps
 const submissionRateMap = new Map<string, number[]>();
 
-function checkRateLimit(userId: string, challengeId: string, limit = 5, windowMs = 15000): boolean {
-  const key = `${userId}:${challengeId}`;
+function checkRateLimit(idSiswa: string, idTantangan: string, limit = 5, windowMs = 15000): boolean {
+  const key = `${idSiswa}:${idTantangan}`;
   const now = Date.now();
   const timestamps = (submissionRateMap.get(key) || []).filter((t) => now - t < windowMs);
 
   if (timestamps.length >= limit) {
-    return false; // Terkena rate limit
+    return false;
   }
 
   timestamps.push(now);
@@ -32,22 +31,14 @@ export interface SubmissionResponse {
 }
 
 const submitFlagSchema = z.object({
-  attemptId: z.string().min(1),
-  challengeId: z.string().min(1),
+  idPercobaan: z.string().min(1),
+  idTantangan: z.string().min(1),
   rawFlag: z.string().min(1, "Jawaban flag tidak boleh kosong"),
 });
 
-/**
- * Validasi pengiriman flag aman di server:
- * - Rate limiting dicek
- * - Attempt berstatus IN_PROGRESS diverifikasi
- * - Normalisasi dan Hashing HMAC dilakukan
- * - Database transaction mencatat submission & menghitung poin
- * - Kunci flag tidak pernah bocor ke client
- */
 export async function submitFlagAction(
-  attemptId: string,
-  challengeId: string,
+  idPercobaan: string,
+  idTantangan: string,
   rawFlag: string
 ): Promise<SubmissionResponse> {
   const user = await getCurrentUser();
@@ -55,13 +46,13 @@ export async function submitFlagAction(
     return { success: false, message: "Sesi tidak valid. Silakan login kembali." };
   }
 
-  const validated = submitFlagSchema.safeParse({ attemptId, challengeId, rawFlag });
+  const validated = submitFlagSchema.safeParse({ idPercobaan, idTantangan, rawFlag });
   if (!validated.success) {
     return { success: false, message: "Data flag yang dikirimkan tidak valid." };
   }
 
   // 1. Cek Rate Limit
-  const isAllowed = checkRateLimit(user.userId, challengeId, 5, 15000);
+  const isAllowed = checkRateLimit(user.userId, idTantangan, 5, 15000);
   if (!isAllowed) {
     return {
       success: false,
@@ -70,30 +61,30 @@ export async function submitFlagAction(
   }
 
   // 2. Cek Attempt & Kepemilikan Sesi
-  const attempt = await prisma.missionAttempt.findUnique({
-    where: { id: attemptId },
+  const attempt = await prisma.percobaanMisi.findUnique({
+    where: { id: idPercobaan },
     include: {
-      mission: true,
-      clueUsages: {
-        where: { clue: { challengeId } },
+      misi: true,
+      penggunaanPetunjuk: {
+        where: { petunjuk: { idTantangan } },
       },
     },
   });
 
-  if (!attempt || attempt.userId !== user.userId) {
-    return { success: false, message: "Attempt misi tidak ditemukan atau tidak sah." };
+  if (!attempt || attempt.idSiswa !== user.userId) {
+    return { success: false, message: "Percobaan misi tidak ditemukan atau tidak sah." };
   }
 
-  if (attempt.status !== "IN_PROGRESS") {
+  if (attempt.status !== "SEDANG_BERJALAN") {
     return { success: false, message: "Misi ini sudah selesai atau tidak aktif." };
   }
 
   // 3. Cek apakah challenge sudah pernah dijawab dengan benar di attempt ini
-  const existingCorrect = await prisma.flagSubmission.findFirst({
+  const existingCorrect = await prisma.kirimanJawaban.findFirst({
     where: {
-      attemptId,
-      challengeId,
-      isCorrect: true,
+      idPercobaan,
+      idTantangan,
+      benar: true,
     },
   });
 
@@ -101,111 +92,121 @@ export async function submitFlagAction(
     return {
       success: true,
       isCorrect: true,
-      pointsAwarded: existingCorrect.pointsAwarded,
+      pointsAwarded: existingCorrect.poinDidapat,
       message: "Tantangan ini sudah berhasil diselesaikan sebelumnya!",
     };
   }
 
   // 4. Ambil aturan Hash Flag dari Database
-  const flagAnswers = await prisma.flagAnswer.findMany({
-    where: { challengeId },
+  const flagAnswers = await prisma.kunciJawaban.findMany({
+    where: { idTantangan },
   });
 
-  const challenge = await prisma.challenge.findUnique({
-    where: { id: challengeId },
+  const challenge = await prisma.tantangan.findUnique({
+    where: { id: idTantangan },
   });
 
   if (!challenge || flagAnswers.length === 0) {
-    return { success: false, message: "Konfigurasi tantangan belum lengkap." };
+    return { success: false, message: "Tantangan atau kunci jawaban belum dikonfigurasi." };
   }
 
-  // 5. Bandingkan dengan variasi flag yang diterima
+  // 5. Bandingkan Hash Jawaban Masukan Siswa vs Database
   let isCorrect = false;
-  for (const answerConfig of flagAnswers) {
-    const normalizedInput = normalizeFlag(rawFlag, {
-      isCaseSensitive: answerConfig.isCaseSensitive,
-      trimSpaces: answerConfig.trimSpaces,
-    });
 
-    const computedHash = hashFlag(normalizedInput);
-    if (computedHash === answerConfig.answerHash) {
+  for (const fa of flagAnswers) {
+    const normalizedInput = normalizeFlag(rawFlag, {
+      trimSpaces: fa.pangkasSpasi,
+      isCaseSensitive: fa.hurufBesarKecil,
+    });
+    const calculatedHash = hashFlag(normalizedInput);
+
+    if (calculatedHash === fa.hashJawaban) {
       isCorrect = true;
       break;
     }
   }
 
-  // 6. Hitung Poin (Poin Dasar - Total Penalti Clue yang sudah dibuka untuk challenge ini)
-  let pointsAwarded = 0;
-  if (isCorrect) {
-    const totalCluePenalty = attempt.clueUsages.reduce((sum, cu) => sum + cu.penaltyDeducted, 0);
-    pointsAwarded = Math.max(0, challenge.points - totalCluePenalty);
-  }
+  // 6. Hitung Pengurangan Skor dari Penalti Petunjuk
+  const totalCluePenalty = attempt.penggunaanPetunjuk.reduce(
+    (sum, c) => sum + c.penaltiDipotong,
+    0
+  );
+  const calculatedPoints = isCorrect ? Math.max(0, challenge.poin - totalCluePenalty) : 0;
 
-  // 7. Simpan FlagSubmission secara transaksional
-  await prisma.flagSubmission.create({
+  // 7. Simpan Riwayat Submission
+  await prisma.kirimanJawaban.create({
     data: {
-      attemptId,
-      challengeId,
-      submittedAnswer: rawFlag, // Simpan untuk audit guru
-      isCorrect,
-      pointsAwarded,
+      idPercobaan,
+      idTantangan,
+      jawabanTerkirim: rawFlag,
+      benar: isCorrect,
+      poinDidapat: calculatedPoints,
     },
   });
 
-  revalidatePath(`/student/missions/${attempt.missionId}/play`);
-  revalidatePath(`/teacher/missions/${attempt.missionId}/results`);
+  revalidatePath(`/siswa/misi/${attempt.idMisi}/kerjakan`);
 
   if (isCorrect) {
     return {
       success: true,
       isCorrect: true,
-      pointsAwarded,
-      message: `🎉 Flag valid! Kamu berhasil mengumpulkan +${pointsAwarded} Poin!`,
+      pointsAwarded: calculatedPoints,
+      message: `🎉 Flag valid! Anda memperoleh +${calculatedPoints} XP.`,
     };
   } else {
     return {
       success: true,
       isCorrect: false,
-      message: "❌ Flag tidak cocok. Coba investigasi materi lebih teliti atau gunakan Clue!",
+      message: "❌ Flag salah atau tidak cocok. Periksa kembali jawaban Anda!",
     };
   }
 }
 
 /**
- * Buka Clue Bertingkat dengan Penalti
+ * Membuka Petunjuk (Clue) dengan mencatat penalti skor
  */
-export async function unlockClueAction(attemptId: string, clueId: string) {
+export async function unlockClueAction(
+  idPercobaan: string,
+  idPetunjuk: string
+): Promise<{ success: boolean; hintText?: string; message: string }> {
   const user = await getCurrentUser();
   if (!user) return { success: false, message: "Sesi tidak valid." };
 
-  const clue = await prisma.clue.findUnique({ where: { id: clueId } });
-  if (!clue) return { success: false, message: "Clue tidak ditemukan." };
+  const clue = await prisma.petunjuk.findUnique({ where: { id: idPetunjuk } });
+  if (!clue) {
+    return { success: false, message: "Petunjuk tidak ditemukan." };
+  }
 
-  // Cek apakah sudah pernah dibuka
-  const existing = await prisma.clueUsage.findUnique({
+  const existing = await prisma.penggunaanPetunjuk.findUnique({
     where: {
-      attemptId_clueId: {
-        attemptId,
-        clueId,
+      idPercobaan_idPetunjuk: {
+        idPercobaan,
+        idPetunjuk,
       },
     },
   });
 
   if (existing) {
-    return { success: true, clueText: clue.hintText, penalty: 0 };
+    return {
+      success: true,
+      hintText: clue.teksPetunjuk,
+      message: "Petunjuk sudah dibuka sebelumnya.",
+    };
   }
 
-  await prisma.clueUsage.create({
+  await prisma.penggunaanPetunjuk.create({
     data: {
-      attemptId,
-      clueId,
-      penaltyDeducted: clue.penaltyXp,
+      idPercobaan,
+      idPetunjuk,
+      penaltiDipotong: clue.penaltiXp,
     },
   });
 
+  revalidatePath(`/siswa/misi`);
+
   return {
     success: true,
-    clueText: clue.hintText,
-    penalty: clue.penaltyXp,
+    hintText: clue.teksPetunjuk,
+    message: `Petunjuk terbuka! Penalti -${clue.penaltiXp} poin diterapkan pada soal ini.`,
   };
 }

@@ -5,217 +5,193 @@ import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizeFlag, hashFlag } from "@/lib/security/hash";
 import { revalidatePath } from "next/cache";
-import { ChallengeType } from "@prisma/client";
+import { TipeTantangan } from "@prisma/client";
 
 async function requireTeacherOrAdmin() {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "TEACHER" && user.role !== "ADMIN")) {
-    throw new Error("Unauthorized: Hanya Guru atau Administrator yang berwenang");
+  if (!user || (user.role !== "GURU" && user.role !== "ADMIN")) {
+    throw new Error("Unauthorized: Akses khusus Guru dan Administrator");
   }
   return user;
 }
 
 // -----------------------------------------------------------------------------
-// 1. TAMBAH CHALLENGE DENGAN FLAG & OPSI
+// 1. TAMBAH TANTANGAN & JAWABAN FLAG
 // -----------------------------------------------------------------------------
-const challengeSchema = z.object({
-  missionId: z.string().min(1),
-  title: z.string().min(3, "Judul challenge minimal 3 karakter"),
-  question: z.string().min(5, "Pertanyaan tantangan minimal 5 karakter"),
-  description: z.string().optional(),
-  challengeType: z.nativeEnum(ChallengeType).default(ChallengeType.TEXT),
-  points: z.coerce.number().min(10).default(100),
-  orderIndex: z.coerce.number().default(1),
-  maxTries: z.coerce.number().min(1).default(5),
-  // Flag answer
-  flagAnswer: z.string().min(1, "Kunci jawaban flag wajib diisi"),
-  isCaseSensitive: z.boolean().default(false),
-  trimSpaces: z.boolean().default(true),
-  // Multiple Choice / Sequence Options (Opsional)
-  options: z.string().optional(), // baris baru dipisahkan newline
+const addChallengeSchema = z.object({
+  idMisi: z.string().min(1),
+  judul: z.string().min(3, "Judul tantangan minimal 3 karakter"),
+  pertanyaan: z.string().min(5, "Pertanyaan tantangan minimal 5 karakter"),
+  deskripsi: z.string().optional(),
+  tipeTantangan: z.nativeEnum(TipeTantangan).default(TipeTantangan.TEKS),
+  poin: z.coerce.number().min(10).default(100),
+  nomorUrut: z.coerce.number().default(1),
+  maksMencoba: z.coerce.number().min(1).default(5),
+  flagJawaban: z.string().min(1, "Kunci jawaban flag wajib diisi"),
+  hurufBesarKecil: z.boolean().default(false),
+  pangkasSpasi: z.boolean().default(true),
+  opsi: z.array(z.string()).optional(),
 });
 
-export async function createChallengeAction(formData: FormData): Promise<void> {
+export async function addChallengeAction(formData: FormData): Promise<void> {
   await requireTeacherOrAdmin();
 
-  const validated = challengeSchema.safeParse({
-    missionId: formData.get("missionId"),
-    title: formData.get("title"),
-    question: formData.get("question"),
-    description: formData.get("description") || undefined,
-    challengeType: formData.get("challengeType") || ChallengeType.TEXT,
-    points: formData.get("points") || 100,
-    orderIndex: formData.get("orderIndex") || 1,
-    maxTries: formData.get("maxTries") || 5,
-    flagAnswer: formData.get("flagAnswer"),
-    isCaseSensitive: formData.get("isCaseSensitive") === "on",
-    trimSpaces: formData.get("trimSpaces") !== "off",
-    options: formData.get("options") || undefined,
+  const idMisi = (formData.get("missionId") || formData.get("idMisi")) as string;
+  const judul = (formData.get("title") || formData.get("judul")) as string;
+  const pertanyaan = (formData.get("question") || formData.get("pertanyaan")) as string;
+  const deskripsi = (formData.get("description") || formData.get("deskripsi")) as string;
+  const tipeTantangan = (formData.get("challengeType") || formData.get("tipeTantangan") || TipeTantangan.TEKS) as TipeTantangan;
+  const poin = Number(formData.get("points") || formData.get("poin") || 100);
+  const nomorUrut = Number(formData.get("orderIndex") || formData.get("nomorUrut") || 1);
+  const maksMencoba = Number(formData.get("maxTries") || formData.get("maksMencoba") || 5);
+  const flagJawaban = (formData.get("flagAnswer") || formData.get("flagJawaban")) as string;
+  const hurufBesarKecil = formData.get("isCaseSensitive") === "on" || formData.get("hurufBesarKecil") === "on";
+  const pangkasSpasi = formData.get("trimSpaces") !== "off" && formData.get("pangkasSpasi") !== "off";
+
+  // Opsi (untuk pilihan ganda)
+  const opsiRaw = (formData.get("options") || formData.get("opsi")) as string;
+  const opsi = opsiRaw
+    ? opsiRaw
+        .split("\n")
+        .map((o) => o.trim())
+        .filter((o) => o.length > 0)
+    : [];
+
+  const validated = addChallengeSchema.safeParse({
+    idMisi,
+    judul,
+    pertanyaan,
+    deskripsi: deskripsi || undefined,
+    tipeTantangan,
+    poin,
+    nomorUrut,
+    maksMencoba,
+    flagJawaban,
+    hurufBesarKecil,
+    pangkasSpasi,
+    opsi,
   });
 
   if (!validated.success) {
     return;
   }
 
-  const {
-    missionId,
-    title,
-    question,
-    description,
-    challengeType,
-    points,
-    orderIndex,
-    maxTries,
-    flagAnswer,
-    isCaseSensitive,
-    trimSpaces,
-    options,
-  } = validated.data;
-
-  // Normalisasi flag sebelum di-hash
-  const normalizedKey = normalizeFlag(flagAnswer, { isCaseSensitive, trimSpaces });
-  const secureHash = hashFlag(normalizedKey);
-
-  // Parse options jika ada (misal untuk MULTIPLE_CHOICE atau SEQUENCE)
-  const optionLines = options
-    ? options
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
+  // Normalisasi dan hitung Hash HMAC aman dari jawaban flag
+  const normalizedAnswer = normalizeFlag(flagJawaban, {
+    trimSpaces: pangkasSpasi,
+    isCaseSensitive: hurufBesarKecil,
+  });
+  const answerHash = hashFlag(normalizedAnswer);
 
   await prisma.$transaction(async (tx) => {
-    // 1. Buat Challenge
-    const challenge = await tx.challenge.create({
+    // 1. Simpan Tantangan
+    const challenge = await tx.tantangan.create({
       data: {
-        missionId,
-        title,
-        question,
-        description,
-        challengeType,
-        points,
-        orderIndex,
-        maxTries,
+        idMisi,
+        judul,
+        pertanyaan,
+        deskripsi: deskripsi || undefined,
+        tipeTantangan,
+        poin,
+        nomorUrut,
+        maksMencoba,
       },
     });
 
-    // 2. Simpan FlagAnswer (hanya menyimpan hash aman, bukan plaintext flag)
-    await tx.flagAnswer.create({
+    // 2. Simpan Kunci Jawaban (Hash disimpan, plaintext dibuang)
+    await tx.kunciJawaban.create({
       data: {
-        challengeId: challenge.id,
-        answerHash: secureHash,
-        isCaseSensitive,
-        trimSpaces,
+        idTantangan: challenge.id,
+        hashJawaban: answerHash,
+        hurufBesarKecil,
+        pangkasSpasi,
       },
     });
 
-    // 3. Simpan options jika tipe MC / Sequence
-    if (optionLines.length > 0) {
-      await tx.challengeOption.createMany({
-        data: optionLines.map((optText, idx) => ({
-          challengeId: challenge.id,
-          optionText: optText,
-          orderIndex: idx + 1,
+    // 3. Simpan Opsi Pilihan Ganda jika ada
+    if (opsi && opsi.length > 0) {
+      await tx.opsiTantangan.createMany({
+        data: opsi.map((optText, idx) => ({
+          idTantangan: challenge.id,
+          teksOpsi: optText,
+          nomorUrut: idx + 1,
         })),
       });
     }
 
-    // 4. Update total poin pada Mission
-    const allChallenges = await tx.challenge.findMany({
-      where: { missionId },
-      select: { points: true },
+    // 4. Update akumulasi poin misi
+    const total = await tx.tantangan.aggregate({
+      where: { idMisi },
+      _sum: { poin: true },
     });
-    const totalPoints = allChallenges.reduce((sum, ch) => sum + ch.points, 0);
 
-    await tx.mission.update({
-      where: { id: missionId },
-      data: { totalPoints },
+    await tx.misi.update({
+      where: { id: idMisi },
+      data: { totalPoin: total._sum.poin || 0 },
     });
   });
 
-  revalidatePath(`/teacher/missions/${missionId}/builder`);
-  revalidatePath(`/teacher/missions/${missionId}/challenges`);
-  revalidatePath(`/teacher/missions/${missionId}/preview`);
+  revalidatePath(`/guru/misi/${idMisi}/challenges`);
+  revalidatePath(`/guru/misi/${idMisi}/builder`);
 }
 
 // -----------------------------------------------------------------------------
-// 2. TAMBAH CLUE BERTINGKAT DENGAN PENALTI
+// 2. TAMBAH PETUNJUK (Clue) DENGAN PENALTI SKOR
 // -----------------------------------------------------------------------------
-const clueSchema = z.object({
-  challengeId: z.string().min(1),
-  missionId: z.string().min(1),
-  title: z.string().min(2, "Judul clue wajib diisi"),
-  hintText: z.string().min(5, "Isi clue minimal 5 karakter"),
-  penaltyXp: z.coerce.number().min(0).default(0),
-  orderIndex: z.coerce.number().default(1),
-});
-
 export async function addClueAction(formData: FormData): Promise<void> {
   await requireTeacherOrAdmin();
 
-  const validated = clueSchema.safeParse({
-    challengeId: formData.get("challengeId"),
-    missionId: formData.get("missionId"),
-    title: formData.get("title"),
-    hintText: formData.get("hintText"),
-    penaltyXp: formData.get("penaltyXp") || 0,
-    orderIndex: formData.get("orderIndex") || 1,
-  });
+  const idTantangan = (formData.get("challengeId") || formData.get("idTantangan")) as string;
+  const idMisi = (formData.get("missionId") || formData.get("idMisi")) as string;
+  const judul = (formData.get("title") || formData.get("judul")) as string;
+  const teksPetunjuk = (formData.get("hintText") || formData.get("teksPetunjuk")) as string;
+  const penaltiXp = Number(formData.get("penaltyXp") || formData.get("penaltiXp") || 0);
+  const nomorUrut = Number(formData.get("orderIndex") || formData.get("nomorUrut") || 1);
 
-  if (!validated.success) {
+  if (!idTantangan || !judul || !teksPetunjuk) {
     return;
   }
 
-  const { challengeId, missionId, title, hintText, penaltyXp, orderIndex } = validated.data;
-
-  await prisma.clue.create({
+  await prisma.petunjuk.create({
     data: {
-      challengeId,
-      title,
-      hintText,
-      penaltyXp,
-      orderIndex,
+      idTantangan,
+      judul,
+      teksPetunjuk,
+      penaltiXp,
+      nomorUrut,
     },
   });
 
-  revalidatePath(`/teacher/missions/${missionId}/builder`);
-  revalidatePath(`/teacher/missions/${missionId}/challenges`);
-  revalidatePath(`/teacher/missions/${missionId}/preview`);
+  revalidatePath(`/guru/misi/${idMisi}/challenges`);
 }
 
-// -----------------------------------------------------------------------------
-// 3. HAPUS CLUE & CHALLENGE
-// -----------------------------------------------------------------------------
-export async function deleteClueAction(clueId: string, missionId: string): Promise<void> {
+export async function deleteClueAction(idPetunjuk: string, idMisi: string): Promise<void> {
   await requireTeacherOrAdmin();
-  await prisma.clue.delete({ where: { id: clueId } });
-  revalidatePath(`/teacher/missions/${missionId}/builder`);
-  revalidatePath(`/teacher/missions/${missionId}/challenges`);
+  await prisma.petunjuk.delete({ where: { id: idPetunjuk } });
+  revalidatePath(`/guru/misi/${idMisi}/challenges`);
 }
 
-export async function deleteChallengeAction(
-  challengeId: string,
-  missionId: string
-): Promise<void> {
+// -----------------------------------------------------------------------------
+// 3. HAPUS TANTANGAN
+// -----------------------------------------------------------------------------
+export async function deleteChallengeAction(idTantangan: string, idMisi: string): Promise<void> {
   await requireTeacherOrAdmin();
 
   await prisma.$transaction(async (tx) => {
-    await tx.challenge.delete({ where: { id: challengeId } });
+    await tx.tantangan.delete({ where: { id: idTantangan } });
 
-    // Recalculate total points
-    const remaining = await tx.challenge.findMany({
-      where: { missionId },
-      select: { points: true },
+    // Rekalkulasi total poin
+    const total = await tx.tantangan.aggregate({
+      where: { idMisi },
+      _sum: { poin: true },
     });
-    const totalPoints = remaining.reduce((sum, ch) => sum + ch.points, 0);
 
-    await tx.mission.update({
-      where: { id: missionId },
-      data: { totalPoints },
+    await tx.misi.update({
+      where: { id: idMisi },
+      data: { totalPoin: total._sum.poin || 0 },
     });
   });
 
-  revalidatePath(`/teacher/missions/${missionId}/builder`);
-  revalidatePath(`/teacher/missions/${missionId}/challenges`);
-  revalidatePath(`/teacher/missions/${missionId}/preview`);
+  revalidatePath(`/guru/misi/${idMisi}/challenges`);
+  revalidatePath(`/guru/misi/${idMisi}/builder`);
 }

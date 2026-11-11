@@ -12,9 +12,25 @@ export async function middleware(request: NextRequest) {
 
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/forgot-password");
   const isAdminRoute = pathname.startsWith("/admin");
-  const isTeacherRoute = pathname.startsWith("/teacher");
-  const isStudentRoute = pathname.startsWith("/student");
-  const isWorkspaceRoute = pathname.startsWith("/missions");
+  const isGuruRoute = pathname.startsWith("/guru") || pathname.startsWith("/teacher");
+  const isSiswaRoute = pathname.startsWith("/siswa") || pathname.startsWith("/student");
+
+  // Kompatibilitas redirect url lama ke url baru bahasa indonesia
+  if (pathname === "/admin/dashboard") {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+  if (pathname === "/teacher/dashboard" || pathname === "/teacher") {
+    return NextResponse.redirect(new URL("/guru", request.url));
+  }
+  if (pathname.startsWith("/teacher/")) {
+    return NextResponse.redirect(new URL(pathname.replace("/teacher/", "/guru/"), request.url));
+  }
+  if (pathname === "/student/dashboard" || pathname === "/student" || pathname === "/siswa/dashboard") {
+    return NextResponse.redirect(new URL("/siswa", request.url));
+  }
+  if (pathname.startsWith("/student/")) {
+    return NextResponse.redirect(new URL(pathname.replace("/student/", "/siswa/"), request.url));
+  }
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
@@ -29,7 +45,6 @@ export async function middleware(request: NextRequest) {
         name: payload.name as string,
       };
     } catch {
-      // Invalid/expired token
       session = null;
     }
   }
@@ -37,16 +52,16 @@ export async function middleware(request: NextRequest) {
   // Jika sudah login dan mencoba mengakses route auth (/login), redirect ke dashboard role-nya
   if (isAuthRoute && session) {
     if (session.role === "ADMIN") {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
-    } else if (session.role === "TEACHER") {
-      return NextResponse.redirect(new URL("/teacher/dashboard", request.url));
+      return NextResponse.redirect(new URL("/admin", request.url));
+    } else if (session.role === "GURU") {
+      return NextResponse.redirect(new URL("/guru", request.url));
     } else {
-      return NextResponse.redirect(new URL("/student/dashboard", request.url));
+      return NextResponse.redirect(new URL("/siswa", request.url));
     }
   }
 
   // Rute terlindungi butuh login
-  const isProtectedRoute = isAdminRoute || isTeacherRoute || isStudentRoute || isWorkspaceRoute;
+  const isProtectedRoute = isAdminRoute || isGuruRoute || isSiswaRoute;
 
   if (isProtectedRoute && !session) {
     const loginUrl = new URL("/login", request.url);
@@ -59,11 +74,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
-  if (isTeacherRoute && session?.role !== "TEACHER" && session?.role !== "ADMIN") {
+  if (isGuruRoute && session?.role !== "GURU" && session?.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
-  if (isStudentRoute && session?.role !== "STUDENT" && session?.role !== "ADMIN") {
+  if (isSiswaRoute && session?.role !== "SISWA" && session?.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
@@ -73,10 +88,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/admin/:path*",
+    "/guru/:path*",
+    "/siswa/:path*",
     "/teacher/:path*",
     "/student/:path*",
-    "/missions/:path*",
     "/login",
-    "/forgot-password",
   ],
 };

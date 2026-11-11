@@ -1,150 +1,151 @@
-import { PrismaClient, Role, UserStatus } from "@prisma/client";
+import { PrismaClient, StatusPengguna } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Memulai seeding data awal FLAG HUNTER...");
+  console.log("🌱 Memulai seeding data awal FLAG HUNTER (Skema Bahasa Indonesia)...");
 
   const defaultPasswordHash = await bcrypt.hash("password123", 10);
 
-  // 1. Bersihkan data demo sebelumnya
-  await prisma.auditLog.deleteMany();
-  await prisma.userBadge.deleteMany();
-  await prisma.badge.deleteMany();
-  await prisma.xpTransaction.deleteMany();
-  await prisma.missionResult.deleteMany();
-  await prisma.clueUsage.deleteMany();
-  await prisma.flagSubmission.deleteMany();
-  await prisma.missionAttempt.deleteMany();
-  await prisma.clue.deleteMany();
-  await prisma.flagAnswer.deleteMany();
-  await prisma.challengeOption.deleteMany();
-  await prisma.challenge.deleteMany();
-  await prisma.learningContent.deleteMany();
-  await prisma.mission.deleteMany();
-  await prisma.chapter.deleteMany();
-  await prisma.classSubject.deleteMany();
-  await prisma.classMember.deleteMany();
-  await prisma.schoolClass.deleteMany();
-  await prisma.academicYear.deleteMany();
-  await prisma.subject.deleteMany();
-  await prisma.user.deleteMany();
+  // 1. Bersihkan data demo
+  await prisma.logAudit.deleteMany();
+  await prisma.lencanaSiswa.deleteMany();
+  await prisma.lencana.deleteMany();
+  await prisma.transaksiXp.deleteMany();
+  await prisma.hasilMisi.deleteMany();
+  await prisma.penggunaanPetunjuk.deleteMany();
+  await prisma.kirimanJawaban.deleteMany();
+  await prisma.percobaanMisi.deleteMany();
+  await prisma.petunjuk.deleteMany();
+  await prisma.kunciJawaban.deleteMany();
+  await prisma.opsiTantangan.deleteMany();
+  await prisma.tantangan.deleteMany();
+  await prisma.kontenBelajar.deleteMany();
+  await prisma.misi.deleteMany();
+  await prisma.bab.deleteMany();
+  await prisma.mapelKelas.deleteMany();
+  await prisma.anggotaKelas.deleteMany();
+  await prisma.kelas.deleteMany();
+  await prisma.tahunAjaran.deleteMany();
+  await prisma.mataPelajaran.deleteMany();
+  await prisma.siswa.deleteMany();
+  await prisma.guru.deleteMany();
+  await prisma.admin.deleteMany();
 
   // 2. Buat Pengguna (1 Admin, 2 Guru, 3 Siswa)
-  await prisma.user.create({
+  await prisma.admin.create({
     data: {
-      name: "Administrator Utama",
+      nama: "Administrator Utama",
       email: "admin@flaghunter.local",
-      passwordHash: defaultPasswordHash,
-      role: Role.ADMIN,
-      status: UserStatus.ACTIVE,
+      kataSandi: defaultPasswordHash,
+      status: StatusPengguna.AKTIF,
     },
   });
 
-  const guru1 = await prisma.user.create({
+  const guru1 = await prisma.guru.create({
     data: {
-      name: "Budi Santoso, S.Kom (Guru TIK)",
+      nip: "198501012010011001",
+      nama: "Budi Santoso, S.Kom (Guru TIK)",
       email: "guru1@flaghunter.local",
-      passwordHash: defaultPasswordHash,
-      role: Role.TEACHER,
-      status: UserStatus.ACTIVE,
+      kataSandi: defaultPasswordHash,
+      status: StatusPengguna.AKTIF,
     },
   });
 
-  await prisma.user.create({
+  await prisma.guru.create({
     data: {
-      name: "Siti Rahmawati, M.Pd (Guru IPA)",
+      nip: "198802022012012002",
+      nama: "Siti Rahmawati, M.Pd (Guru IPA)",
       email: "guru2@flaghunter.local",
-      passwordHash: defaultPasswordHash,
-      role: Role.TEACHER,
-      status: UserStatus.ACTIVE,
+      kataSandi: defaultPasswordHash,
+      status: StatusPengguna.AKTIF,
     },
   });
 
-  const siswa1 = await prisma.user.create({
+  const siswa1 = await prisma.siswa.create({
     data: {
-      name: "Ahmad Fadillah",
+      nisn: "0051234561",
+      nama: "Ahmad Fadillah",
       email: "siswa1@flaghunter.local",
-      passwordHash: defaultPasswordHash,
-      role: Role.STUDENT,
-      status: UserStatus.ACTIVE,
+      kataSandi: defaultPasswordHash,
+      status: StatusPengguna.AKTIF,
     },
   });
 
-  const siswa2 = await prisma.user.create({
+  const siswa2 = await prisma.siswa.create({
     data: {
-      name: "Dewi Lestari",
+      nisn: "0051234562",
+      nama: "Dewi Lestari",
       email: "siswa2@flaghunter.local",
-      passwordHash: defaultPasswordHash,
-      role: Role.STUDENT,
-      status: UserStatus.ACTIVE,
+      kataSandi: defaultPasswordHash,
+      status: StatusPengguna.AKTIF,
     },
   });
 
-  const siswa3 = await prisma.user.create({
+  const siswa3 = await prisma.siswa.create({
     data: {
-      name: "Rizky Pratama",
+      nisn: "0051234563",
+      nama: "Rizky Pratama",
       email: "siswa3@flaghunter.local",
-      passwordHash: defaultPasswordHash,
-      role: Role.STUDENT,
-      status: UserStatus.ACTIVE,
+      kataSandi: defaultPasswordHash,
+      status: StatusPengguna.AKTIF,
     },
   });
 
-  console.log("✅ Berhasil membuat 6 user demonstrasi (Admin, 2 Guru, 3 Siswa).");
+  console.log("✅ Berhasil membuat akun (1 Admin, 2 Guru, 3 Siswa).");
 
   // 3. Tahun Ajaran & Kelas
-  const academicYear = await prisma.academicYear.create({
+  const tahunAjaran = await prisma.tahunAjaran.create({
     data: {
-      name: "2025/2026 Ganjil",
-      startDate: new Date("2025-07-15"),
-      endDate: new Date("2025-12-20"),
-      isActive: true,
+      nama: "2025/2026 Ganjil",
+      tanggalMulai: new Date("2025-07-15"),
+      tanggalSelesai: new Date("2025-12-20"),
+      aktif: true,
     },
   });
 
-  const kelasRPL = await prisma.schoolClass.create({
+  const kelasRPL = await prisma.kelas.create({
     data: {
-      name: "X RPL 1",
-      gradeLevel: 10,
-      major: "Rekayasa Perangkat Lunak",
-      academicYearId: academicYear.id,
+      nama: "X RPL 1",
+      tingkat: 10,
+      jurusan: "Rekayasa Perangkat Lunak",
+      idTahunAjaran: tahunAjaran.id,
     },
   });
 
   // Assign siswa ke kelas
-  await prisma.classMember.createMany({
+  await prisma.anggotaKelas.createMany({
     data: [
-      { classId: kelasRPL.id, userId: siswa1.id, role: Role.STUDENT },
-      { classId: kelasRPL.id, userId: siswa2.id, role: Role.STUDENT },
-      { classId: kelasRPL.id, userId: siswa3.id, role: Role.STUDENT },
+      { idKelas: kelasRPL.id, idSiswa: siswa1.id },
+      { idKelas: kelasRPL.id, idSiswa: siswa2.id },
+      { idKelas: kelasRPL.id, idSiswa: siswa3.id },
     ],
   });
 
-  // 4. Mata Pelajaran & Chapter
-  const mapelTIK = await prisma.subject.create({
+  // 4. Mata Pelajaran & Bab
+  const mapelTIK = await prisma.mataPelajaran.create({
     data: {
-      code: "INF-X",
-      name: "Informatika & Jaringan Dasar",
-      description: "Dasar protokol komunikasi jaringan komputer dan keamanan informasi.",
+      kode: "INF-X",
+      nama: "Informatika & Jaringan Dasar",
+      deskripsi: "Dasar protokol komunikasi jaringan komputer dan keamanan informasi.",
     },
   });
 
-  await prisma.classSubject.create({
+  await prisma.mapelKelas.create({
     data: {
-      classId: kelasRPL.id,
-      subjectId: mapelTIK.id,
-      teacherId: guru1.id,
+      idKelas: kelasRPL.id,
+      idMataPelajaran: mapelTIK.id,
+      idGuru: guru1.id,
     },
   });
 
-  await prisma.chapter.create({
+  await prisma.bab.create({
     data: {
-      subjectId: mapelTIK.id,
-      title: "Protokol Pengalamatan IP & Subnetting",
-      orderIndex: 1,
-      description: "Memahami struktur IP versi 4 dan routing sederhana.",
+      idMataPelajaran: mapelTIK.id,
+      judul: "Protokol Pengalamatan IP & Subnetting",
+      nomorUrut: 1,
+      deskripsi: "Memahami struktur IP versi 4 dan routing sederhana.",
     },
   });
 
