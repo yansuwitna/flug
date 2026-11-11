@@ -47,15 +47,15 @@ export default async function GuruDashboardPage() {
         {/* Header Banner */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <h2 className="text-3xl font-extrabold text-white">Dasbor Guru</h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">Dasbor Guru</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Selamat datang kembali, {user.name}! Kelola misi investigasi CTF dan pantau pengerjaan siswa.
             </p>
           </div>
 
           <Link
             href="/guru/misi/baru"
-            className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-2xl transition shadow-lg shadow-emerald-600/20 cursor-pointer w-fit"
+            className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-2xl transition shadow-md cursor-pointer w-fit"
           >
             <PlusCircle className="w-4 h-4" /> Buat Misi Baru
           </Link>
@@ -63,42 +63,42 @@ export default async function GuruDashboardPage() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="p-6 rounded-3xl bg-slate-800/80 border border-slate-700/80">
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Misi Dibuat</span>
-              <Flag className="w-5 h-5 text-emerald-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Misi Dibuat</span>
+              <Flag className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <div className="text-3xl font-extrabold text-white">{totalMisi}</div>
-            <p className="text-xs text-slate-400 mt-2">Misi pembelajaran aktif</p>
+            <div className="text-3xl font-extrabold text-slate-900 dark:text-white">{totalMisi}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Misi pembelajaran aktif</p>
           </div>
 
-          <div className="p-6 rounded-3xl bg-slate-800/80 border border-slate-700/80">
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Kelas Diampu</span>
-              <Layers className="w-5 h-5 text-cyan-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kelas Diampu</span>
+              <Layers className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
             </div>
-            <div className="text-3xl font-extrabold text-white">{mapelKelas.length}</div>
-            <p className="text-xs text-slate-400 mt-2">Rombel terhubung</p>
+            <div className="text-3xl font-extrabold text-slate-900 dark:text-white">{mapelKelas.length}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Rombel terhubung</p>
           </div>
 
-          <div className="p-6 rounded-3xl bg-slate-800/80 border border-slate-700/80">
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Siswa Diajar</span>
-              <Users className="w-5 h-5 text-indigo-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Siswa Diajar</span>
+              <Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <div className="text-3xl font-extrabold text-white">{totalSiswa}</div>
-            <p className="text-xs text-slate-400 mt-2">Total siswa di kelas Anda</p>
+            <div className="text-3xl font-extrabold text-slate-900 dark:text-white">{totalSiswa}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Total siswa di kelas Anda</p>
           </div>
         </div>
 
         {/* List Kelas Diampu */}
         <div className="space-y-4">
-          <h3 className="font-bold text-white text-lg flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-cyan-400" /> Mata Pelajaran & Kelas yang Anda Ampu
+          <h3 className="font-bold text-slate-900 dark:text-white text-lg flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-cyan-600 dark:text-cyan-400" /> Mata Pelajaran & Kelas yang Anda Ampu
           </h3>
 
           {mapelKelas.length === 0 ? (
-            <div className="p-8 rounded-3xl bg-slate-800/40 border border-slate-700/80 text-center text-xs text-slate-400">
+            <div className="p-8 rounded-3xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
               Anda belum ditugaskan mengampu kelas apapun oleh Administrator.
             </div>
           ) : (
@@ -106,32 +106,32 @@ export default async function GuruDashboardPage() {
               {mapelKelas.map((mk) => (
                 <div
                   key={mk.id}
-                  className="p-6 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-slate-600 transition flex flex-col justify-between"
+                  className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition flex flex-col justify-between shadow-sm"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800">
                         {mk.mataPelajaran.kode}
                       </span>
-                      <span className="text-xs font-semibold text-white">
+                      <span className="text-xs font-semibold text-slate-900 dark:text-white">
                         {mk.kelas.nama}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-white text-base mt-2">{mk.mataPelajaran.nama}</h4>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-base mt-2">{mk.mataPelajaran.nama}</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       {mk.kelas._count.anggota} Siswa • {mk.mataPelajaran.bab.length} Bab Terdaftar
                     </p>
 
-                    <div className="mt-4 pt-3 border-t border-slate-700/60 text-xs text-slate-400 flex items-center justify-between">
+                    <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
                       <span>{mk.misi.length} Misi Diterbitkan</span>
                     </div>
                   </div>
 
-                  <div className="mt-6 pt-3 border-t border-slate-700/60">
+                  <div className="mt-6 pt-3 border-t border-slate-200 dark:border-slate-800">
                     <Link
                       href={`/guru/misi`}
-                      className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition"
+                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1.5 transition"
                     >
                       Buka Bank Misi <ArrowRight className="w-3.5 h-3.5" />
                     </Link>

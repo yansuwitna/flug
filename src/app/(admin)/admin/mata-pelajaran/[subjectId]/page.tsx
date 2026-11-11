@@ -44,34 +44,34 @@ export default async function AdminDetailMataPelajaranPage({
         <div>
           <Link
             href="/admin/mata-pelajaran"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition mb-3"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition mb-3"
           >
             <ArrowLeft className="w-4 h-4" /> Kembali ke Daftar Mata Pelajaran
           </Link>
 
           <div className="flex items-center gap-3">
-            <span className="font-mono text-sm font-bold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-amber-400">
+            <span className="font-mono text-sm font-bold px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-slate-800 border border-amber-200 dark:border-slate-700 text-amber-700 dark:text-amber-400 shadow-sm">
               {mataPelajaran.kode}
             </span>
-            <h2 className="text-3xl font-extrabold text-white">{mataPelajaran.nama}</h2>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">{mataPelajaran.nama}</h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
             {mataPelajaran.deskripsi || "Silabus dan susunan materi pembelajaran FLAG HUNTER."}
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Form Tambah Bab */}
-          <div className="p-6 rounded-3xl bg-slate-800/80 border border-slate-700/80 shadow-xl h-fit">
-            <h3 className="font-bold text-white text-base mb-4 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-emerald-400" /> Tambah Bab / Modul
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm h-fit">
+            <h3 className="font-bold text-slate-900 dark:text-white text-base mb-4 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Tambah Bab / Modul
             </h3>
 
             <form action={createChapterAction} className="space-y-4">
               <input type="hidden" name="idMataPelajaran" value={mataPelajaran.id} />
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                   Nomor Urut
                 </label>
                 <input
@@ -80,12 +80,12 @@ export default async function AdminDetailMataPelajaranPage({
                   defaultValue={mataPelajaran.bab.length + 1}
                   required
                   min={1}
-                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                   Judul Bab
                 </label>
                 <input
@@ -93,25 +93,25 @@ export default async function AdminDetailMataPelajaranPage({
                   name="judul"
                   required
                   placeholder="Contoh: Protokol IP & Routing Dasar"
-                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                   Tujuan Pembelajaran / Ringkasan (Opsional)
                 </label>
                 <textarea
                   name="deskripsi"
                   rows={3}
                   placeholder="Uraian konsep yang dipelajari pada bab ini..."
-                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl transition shadow-lg shadow-emerald-600/20 cursor-pointer"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl transition shadow-md cursor-pointer"
               >
                 Simpan Bab Baru
               </button>
@@ -120,12 +120,12 @@ export default async function AdminDetailMataPelajaranPage({
 
           {/* List Bab & Modul */}
           <div className="lg:col-span-2 space-y-4">
-            <h3 className="font-bold text-white text-base flex items-center gap-2">
-              <FolderTree className="w-4 h-4 text-amber-400" /> Urutan Bab Pembelajaran ({mataPelajaran.bab.length})
+            <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+              <FolderTree className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Urutan Bab Pembelajaran ({mataPelajaran.bab.length})
             </h3>
 
             {mataPelajaran.bab.length === 0 ? (
-              <div className="p-8 rounded-2xl bg-slate-800/40 border border-slate-700/80 text-center text-xs text-slate-400">
+              <div className="p-8 rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
                 Belum ada bab materi pada mata pelajaran ini.
               </div>
             ) : (
@@ -133,19 +133,19 @@ export default async function AdminDetailMataPelajaranPage({
                 {mataPelajaran.bab.map((b) => (
                   <div
                     key={b.id}
-                    className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700/80 hover:border-slate-600 transition flex items-start gap-4"
+                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition flex items-start gap-4 shadow-sm"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 text-amber-400 flex items-center justify-center font-bold text-sm shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-slate-950 border border-amber-200 dark:border-slate-700 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-sm shrink-0">
                       {b.nomorUrut}
                     </div>
 
                     <div className="flex-1">
-                      <h4 className="font-bold text-white text-base">{b.judul}</h4>
-                      <p className="text-xs text-slate-400 mt-1">
+                      <h4 className="font-bold text-slate-900 dark:text-white text-base">{b.judul}</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         {b.deskripsi || "Tidak ada rincian materi."}
                       </p>
 
-                      <div className="mt-3 flex items-center gap-3 text-xs text-emerald-400 font-medium">
+                      <div className="mt-3 flex items-center gap-3 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                         <span>{b._count.misi} Misi Lab Tersedia</span>
                       </div>
                     </div>

@@ -6,7 +6,8 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${poppins.variable} h-full antialiased`}>
+    <html lang="id" suppressHydrationWarning className={`${poppins.variable} h-full antialiased`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
